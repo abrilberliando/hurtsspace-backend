@@ -26,6 +26,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Auth Actions
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'me']);
+    // Fitur Shipping
+    Route::get('/shipping/areas', [\App\Http\Controllers\Api\ShippingController::class, 'searchArea']);
+    Route::post('/shipping/cost', [\App\Http\Controllers\Api\ShippingController::class, 'checkCost']);
 
     // ====================================================================
     // 🔴 3. ADMIN ONLY ROUTES (Area Terlarang buat Member)
