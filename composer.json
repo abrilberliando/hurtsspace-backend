@@ -67,6 +67,14 @@
         ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+        ],
+        "clean": [
+            "@php artisan optimize:clear",
+            "@php artisan config:clear",
+            "@php artisan route:clear",
+            "@php artisan view:clear",
+            "@php artisan event:clear",
+            "composer dump-autoload"
         ]
     },
     "extra": {

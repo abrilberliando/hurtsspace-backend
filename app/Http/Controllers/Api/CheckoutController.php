@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Voucher; // 👈 Jangan lupa import ini
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Midtrans\Config;
@@ -18,15 +18,17 @@ class CheckoutController extends Controller
     {
         // 1. Validasi Input
         $request->validate([
-            'items' => 'required|array',
+            'items' => 'required|array', // [{variant_id: 1, quantity: 2}]
             'items.*.variant_id' => 'required|exists:product_variants,id',
             'items.*.quantity' => 'required|integer|min:1',
             'shipping_cost' => 'required|integer',
             'shipping_service' => 'required|string',
             'shipping_courier' => 'required|string',
             'shipping_address' => 'required|string',
+            'voucher_code' => 'nullable|string|exists:vouchers,code', // 👈 Validasi Voucher
         ]);
 
+        // Setup Midtrans
         Config::$serverKey = env('MIDTRANS_SERVER_KEY');
         Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
         Config::$isSanitized = true;
@@ -38,8 +40,9 @@ class CheckoutController extends Controller
             $user = $request->user();
             $totalPrice = 0;
             $orderItems = [];
+            $midtransItemDetails = []; // Array khusus buat Midtrans
 
-            // 2. Hitung Ulang & Cek Stok
+            // 2. Loop Barang: Hitung Harga, Cek Stok, Siapkan Data
             foreach ($request->items as $item) {
                 $variant = ProductVariant::with('product')->lockForUpdate()->find($item['variant_id']);
 
@@ -51,26 +54,76 @@ class CheckoutController extends Controller
                     throw new \Exception("Stok {$variant->product->name} ({$variant->size}) habis atau kurang, G!");
                 }
 
-                $price = $variant->product->price;
+                $price = (int) $variant->product->price;
                 $subtotal = $price * $item['quantity'];
                 $totalPrice += $subtotal;
 
-                // Simpan data lengkap ke array sementara
+                // Data buat disimpen ke database order_items
                 $orderItems[] = [
                     'product_id' => $variant->product_id,
                     'product_variant_id' => $variant->id,
                     'quantity' => $item['quantity'],
                     'price' => $price,
-                    'name' => $variant->product->name, // Tambahin Nama buat Midtrans
                 ];
 
+                // Data buat dikirim ke Midtrans (Item Details)
+                $midtransItemDetails[] = [
+                    'id' => $variant->id,
+                    'price' => $price,
+                    'quantity' => $item['quantity'],
+                    'name' => substr($variant->product->name . ' (' . $variant->size . ')', 0, 50)
+                ];
+
+                // Kurangi Stok Barang
                 $variant->decrement('stock', $item['quantity']);
             }
 
-            $grandTotal = $totalPrice + $request->shipping_cost;
+            // 3. Logic Diskon Voucher
+            $discountAmount = 0;
+            if ($request->voucher_code) {
+                $voucher = Voucher::where('code', $request->voucher_code)->first();
+
+                // Cek validitas & stok voucher lagi biar aman
+                if ($voucher && $voucher->stock > 0) {
+                    if ($voucher->discount_type == 'percent') {
+                        $discountAmount = ($totalPrice * $voucher->discount_amount) / 100;
+                    } else {
+                        $discountAmount = $voucher->discount_amount;
+                    }
+
+                    // Kurangi stok voucher
+                    $voucher->decrement('stock');
+                }
+            }
+
+            // Tambahkan Ongkir ke rincian Midtrans
+            if ($request->shipping_cost > 0) {
+                $midtransItemDetails[] = [
+                    'id' => 'SHIPPING',
+                    'price' => (int) $request->shipping_cost,
+                    'quantity' => 1,
+                    'name' => 'Ongkos Kirim (' . strtoupper($request->shipping_courier) . ')'
+                ];
+            }
+
+            // Tambahkan Diskon ke rincian Midtrans (Sebagai item negatif)
+            if ($discountAmount > 0) {
+                $midtransItemDetails[] = [
+                    'id' => 'DISCOUNT',
+                    'price' => -((int) $discountAmount), // Harga minus
+                    'quantity' => 1,
+                    'name' => 'Voucher Discount (' . $request->voucher_code . ')'
+                ];
+            }
+
+            // Hitung Grand Total (Total Barang + Ongkir - Diskon)
+            // Min 10000 biar Midtrans gak error kalo gratisan
+            $grandTotal = ($totalPrice + $request->shipping_cost) - $discountAmount;
+            if ($grandTotal < 10000) $grandTotal = 10000;
+
+            // 4. Buat Order Utama di Database
             $invoice = 'INV-' . time() . '-' . $user->id;
 
-            // 3. Simpan Order Utama
             $order = Order::create([
                 'user_id' => $user->id,
                 'invoice_number' => $invoice,
@@ -82,7 +135,7 @@ class CheckoutController extends Controller
                 'shipping_address' => $request->shipping_address,
             ]);
 
-            // Simpan Detail Order Items
+            // 5. Simpan Detail Barang ke Database
             foreach ($orderItems as $dataItem) {
                 OrderItem::create([
                     'order_id' => $order->id,
@@ -93,8 +146,7 @@ class CheckoutController extends Controller
                 ]);
             }
 
-            // 4. Request Snap Token Midtrans (FIXED LOGIC DI SINI)
-            // Kita pake $orderItems yang udah lengkap datanya
+            // 6. Request Snap Token ke Midtrans
             $midtransParams = [
                 'transaction_details' => [
                     'order_id' => $invoice,
@@ -105,28 +157,12 @@ class CheckoutController extends Controller
                     'email' => $user->email,
                     'phone' => $user->phone ?? '08123456789',
                 ],
-                'item_details' => array_map(function($item) {
-                    return [
-                        'id' => $item['product_variant_id'],
-                        'price' => (int) $item['price'],
-                        'quantity' => $item['quantity'],
-                        'name' => substr($item['name'], 0, 50) // Nama produk max 50 char biar aman
-                    ];
-                }, $orderItems), // <--- Pake $orderItems, bukan $request->items
+                'item_details' => $midtransItemDetails, // Pake array yang udah lengkap tadi
             ];
-
-            // Masukin Ongkir sebagai "Item" tambahan di Midtrans biar totalnya match
-            if ($request->shipping_cost > 0) {
-                $midtransParams['item_details'][] = [
-                    'id' => 'SHIPPING',
-                    'price' => (int) $request->shipping_cost,
-                    'quantity' => 1,
-                    'name' => 'Ongkos Kirim (' . strtoupper($request->shipping_courier) . ')'
-                ];
-            }
 
             $snapToken = Snap::getSnapToken($midtransParams);
 
+            // Update token ke order
             $order->update(['snap_token' => $snapToken]);
 
             DB::commit();

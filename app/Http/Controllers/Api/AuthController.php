@@ -98,4 +98,32 @@ class AuthController extends Controller
     {
         return response()->json($request->user());
     }
+
+    // 5. Update Profile
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'name' => 'required|string',
+            'phone' => 'nullable|string',
+            'address_detail' => 'nullable|string', // Alamat Lengkap
+            'city_id' => 'nullable|string',        // ID Area Biteship
+            'province_id' => 'nullable|string',    // Nama Kota/Kecamatan buat display (Opsional)
+        ]);
+
+        $user->update([
+            'name' => $request->name,
+            'phone' => $request->phone,
+            'address_detail' => $request->address_detail,
+            'city_id' => $request->city_id,
+            // 'province_id' bisa kita pake buat simpen Nama Kota biar gak bingung
+            'province_id' => $request->province_id,
+        ]);
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+            'user' => $user
+        ]);
+    }
 }
