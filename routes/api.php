@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Middleware\IsAdmin;
+use App\Http\Controllers\Api\BannerController;
 
 // ========================================================================
 // 🟢 1. PUBLIC ROUTES (Bebas Akses)
@@ -24,6 +25,9 @@ Route::post('/webhooks/midtrans', [\App\Http\Controllers\Api\WebhookController::
 // LookBook
 Route::get('/lookbooks', [\App\Http\Controllers\Api\LookbookController::class, 'index']);
 Route::get('/lookbooks/{id}', [\App\Http\Controllers\Api\LookbookController::class, 'show']);
+
+// Banners
+Route::get('/banners/active', [BannerController::class, 'getActive']);
 
 
 // ========================================================================
@@ -73,6 +77,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/vouchers', [\App\Http\Controllers\Api\AdminVoucherController::class, 'index']);
         Route::post('/admin/vouchers', [\App\Http\Controllers\Api\AdminVoucherController::class, 'store']);
         Route::delete('/admin/vouchers/{id}', [\App\Http\Controllers\Api\AdminVoucherController::class, 'destroy']);
+
+        // Banners Management
+        Route::get('admin/banners', [BannerController::class, 'index']);
+        Route::post('admin/banners', [BannerController::class, 'store']);
+        Route::patch('admin/banners/{id}/toggle', [BannerController::class, 'toggleActive']);
+        Route::delete('admin/banners/{id}', [BannerController::class, 'destroy']);
 
     });
 
