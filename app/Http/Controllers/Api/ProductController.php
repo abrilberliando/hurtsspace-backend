@@ -4,75 +4,55 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\ProductImage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Validator;
 
 class ProductController extends Controller
 {
-    // 1. GET ALL PRODUCTS
-    public function index(Request $request)
+   // 1. GET ALL PRODUCTS
+    public function index()
     {
-        $query = Product::with(['category', 'images', 'variants']);
+        // 👇 TAMBAH 'category' DISINI BIAR KEBACA
+        $products = Product::with(['images', 'variants', 'category'])
+            ->orderBy('id', 'desc')
+            ->get();
 
-        if ($request->has('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-
-        if ($request->has('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
-        }
-
-        $products = $query->latest()->paginate(10);
-
-        return response()->json([
-            'message' => 'List produk berhasil diambil',
-            'data' => $products
-        ]);
+        return response()->json(['data' => $products]);
     }
 
     // 2. GET SINGLE PRODUCT
-    public function show($slug)
+    public function show($id)
     {
-        $product = Product::with(['category', 'images', 'variants'])
-            ->where('slug', $slug)
-            ->first();
+        // 👇 TAMBAH 'category' DISINI JUGA
+        $product = Product::with(['images', 'variants', 'category'])->findOrFail($id);
 
-        if (!$product) {
-            return response()->json([
-                'message' => 'Waduh, Produk tidak ditemukan G! Coba cek linknya lagi.'
-            ], 404);
-        }
-
-        return response()->json([
-            'message' => 'Detail produk ditemukan',
-            'data' => $product
-        ]);
+        return response()->json(['data' => $product]);
     }
-
-    // 3. CREATE PRODUCT (Admin Only)
+    // 3. CREATE PRODUCT (Admin Only) - Multi-Image Ready
     public function store(Request $request)
     {
-        // Validasi Manual biar pesan errornya bisa Custom Bahasa Gaul
-        $validator = Validator::make($request->all(), [
+        // Validasi input
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'category_id' => 'required|exists:categories,id', // Harus ada di tabel categories
+            'category_id' => 'required|exists:categories,id',
             'description' => 'required',
             'price' => 'required|numeric|min:1000',
             'weight' => 'required|integer|min:1',
             'sizes' => 'required|array',
-            'image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+            'images' => 'required|array|min:1',
+            'images.*' => 'image|mimes:jpeg,png,jpg|max:2048', // Setiap file di array harus gambar
         ], [
             // Custom Messages
             'required' => 'Kolom :attribute wajib diisi ya G!',
             'numeric' => 'Kolom :attribute harus berupa angka.',
-            'category_id.exists' => 'Category ID tidak valid (Pastikan ID kategori ada di database).',
-            'image.image' => 'File harus berupa gambar.',
-            'image.max' => 'Ukuran gambar maksimal 2MB.',
+            'category_id.exists' => 'Category ID tidak valid.',
+            'images.required' => 'Wajib upload minimal 1 foto produk.',
+            'images.*.image' => 'File harus berupa gambar (jpeg, png, jpg).',
+            'images.*.max' => 'Ukuran setiap gambar maksimal 2MB.',
         ]);
 
-        // Kalau validasi gagal, balikin JSON 422
         if ($validator->fails()) {
             return response()->json([
                 'message' => 'Data tidak valid, cek lagi isian lo.',
@@ -80,65 +60,185 @@ class ProductController extends Controller
             ], 422);
         }
 
-        // Upload Gambar
-        $imagePath = null;
-        if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('products', 'public');
-        }
+        DB::beginTransaction();
 
-        // Simpan Produk
-        $product = Product::create([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name) . '-' . time(),
-            'category_id' => $request->category_id,
-            'description' => $request->description,
-            'price' => $request->price,
-            'weight' => $request->weight,
-            'is_collab' => $request->boolean('is_collab'),
-        ]);
-
-        // Simpan Gambar
-        if ($imagePath) {
-            $product->images()->create([
-                'image_url' => url('storage/' . $imagePath),
-                'is_primary' => true
+        try {
+            // Simpan Data Produk
+            $product = Product::create([
+                'name' => $request->name,
+                'slug' => \Illuminate\Support\Str::slug($request->name) . '-' . time(),
+                'category_id' => $request->category_id,
+                'description' => $request->description,
+                'price' => $request->price,
+                'weight' => $request->weight,
+                'is_collab' => $request->boolean('is_collab'),
+                'is_new_arrival' => true,
             ]);
-        }
 
-        // Simpan Varian Size
-        foreach ($request->sizes as $size) {
-            $product->variants()->create([
-                'size' => $size,
-                'stock' => 10, // Default stock
-            ]);
-        }
+            // Simpan MULTIPLE IMAGES
+            if ($request->hasFile('images')) {
+                foreach ($request->file('images') as $index => $image) {
+                    // Simpan file, lalu catat URL-nya di database
+                    $imagePath = $image->store('products', 'public');
 
-        return response()->json([
-            'message' => 'Mantap! Produk berhasil dibuat.',
-            'data' => $product->load('variants', 'images')
-        ], 201);
+                    $product->images()->create([
+                        'image_url' => url('storage/' . $imagePath),
+                        // Gambar pertama (index 0) jadi gambar utama
+                        'is_primary' => $index === 0
+                    ]);
+                }
+            }
+
+            // Simpan Variants (Size & Stok Default)
+            foreach ($request->sizes as $size) {
+                $product->variants()->create([
+                    'size' => $size,
+                    'stock' => 10,
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Produk berhasil dibuat!',
+                'data' => $product->load('variants', 'images')
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Gagal membuat produk: ' . $e->getMessage()], 500);
+        }
     }
 
-    // 4. DELETE PRODUCT (Admin Only)
-    public function destroy($id)
+    // 4. UPDATE PRODUCT (Admin Only) - Paling kompleks, handle gambar lama & baru
+    public function update(Request $request, $id)
     {
-        // Cari pake find (bukan findOrFail) biar bisa kita custom errornya
-        $product = Product::find($id);
+        $product = Product::with('images', 'variants')->findOrFail($id);
 
-        // Kalau produk gak ketemu (udah dihapus atau emang ga ada)
-        if (!$product) {
-            return response()->json([
-                'message' => 'Error 404: Produk tidak ditemukan atau sudah dihapus sebelumnya.'
-            ], 404);
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'category_id' => 'required|exists:categories,id',
+            'description' => 'required',
+            'price' => 'required|numeric|min:1000',
+            'weight' => 'required|integer|min:1',
+            'sizes' => 'required|array',
+
+            'images' => 'nullable|array', // Gambar baru (opsional)
+            'images.*' => 'image|mimes:jpeg,png,jpg|max:2048',
+
+            'existing_images' => 'nullable|array', // URL gambar lama yang dipertahankan
+        ], [
+            'required' => 'Kolom :attribute wajib diisi ya G!',
+            'numeric' => 'Kolom :attribute harus berupa angka.',
+            'category_id.exists' => 'Category ID tidak valid.',
+            'sizes.required' => 'Wajib pilih minimal 1 size.',
+            'images.*.image' => 'File harus berupa gambar (jpeg, png, jpg).',
+            'images.*.max' => 'Ukuran setiap gambar maksimal 2MB.',
+        ]);
+
+        // Cek total gambar (lama + baru)
+        $totalImages = count($request->input('existing_images', [])) + count($request->file('images', []));
+        if ($totalImages === 0) {
+            return response()->json(['message' => 'Wajib ada minimal 1 foto produk.', 'errors' => ['images' => ['Wajib ada minimal 1 foto produk.']]], 422);
         }
 
-        // Hapus file gambar dari storage biar gak nyampah (Optional tapi bagus)
-        // $product->images->each(function($img) { ...logic hapus file... });
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Data tidak valid, cek lagi isian lo.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
 
-        $product->delete();
+        DB::beginTransaction();
 
-        return response()->json([
-            'message' => 'Produk berhasil dihapus dari muka bumi.'
-        ], 200);
+        try {
+            // 1. Update Data Dasar Produk
+            $product->update([
+                'name' => $request->name,
+                // Kita ganti slug-nya biar unik meskipun namanya sama
+                'slug' => \Illuminate\Support\Str::slug($request->name) . '-' . time(),
+                'category_id' => $request->category_id,
+                'description' => $request->description,
+                'price' => $request->price,
+                'weight' => $request->weight,
+                'is_collab' => $request->boolean('is_collab'),
+            ]);
+
+            // 2. Kelola Gambar (Hapus yang dibuang, tambah yang baru)
+            $existingImagesToKeep = $request->input('existing_images', []);
+            $imagesToDelete = $product->images->pluck('image_url')->diff($existingImagesToKeep);
+
+            // Hapus gambar yang TIDAK dipertahankan dari DB
+            if ($imagesToDelete->count() > 0) {
+                $imagesToDelete->each(function ($url) {
+                    // Ambil path relatif dari URL (misal: 'http://localhost:8000/storage/products/xxx.jpg' -> 'products/xxx.jpg')
+                    $path = str_replace(url('storage') . '/', '', $url);
+                    // Hapus dari Storage
+                    Storage::disk('public')->delete($path);
+                });
+                // Hapus dari Database
+                ProductImage::whereIn('image_url', $imagesToDelete)->delete();
+            }
+
+            // Tambahkan gambar BARU
+            if ($request->hasFile('images')) {
+                foreach ($request->file('images') as $image) {
+                    $imagePath = $image->store('products', 'public');
+                    $product->images()->create([
+                        'image_url' => url('storage/' . $imagePath),
+                        'is_primary' => false
+                    ]);
+                }
+            }
+
+            // Re-set Primary Image (Gambar pertama di list yang tersisa jadi Primary)
+            $firstImage = $product->images()->orderBy('id', 'asc')->first();
+            if ($firstImage && !$firstImage->is_primary) {
+                $product->images()->update(['is_primary' => false]); // Reset semua
+                $firstImage->update(['is_primary' => true]); // Set yang pertama
+            }
+
+
+            // 3. Kelola Varian/Size (Hapus semua lama, buat baru)
+            $product->variants()->delete();
+            foreach ($request->sizes as $size) {
+                // Catatan: Ini mereset stock jadi 10. Admin harus edit manual stocknya.
+                $product->variants()->create(['size' => $size, 'stock' => 10]);
+            }
+
+            DB::commit();
+
+            return response()->json(['message' => 'Produk berhasil diupdate!', 'data' => $product->load('variants', 'images')]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Gagal mengupdate produk: ' . $e->getMessage()], 500);
+        }
+    }
+
+    // 5. DELETE PRODUCT (Admin Only)
+    public function destroy($id)
+    {
+        $product = Product::findOrFail($id);
+
+        DB::beginTransaction();
+
+        try {
+            // Hapus gambar fisik dari storage
+            $product->images->each(function($image) {
+                $path = str_replace(url('storage') . '/', '', $image->image_url);
+                Storage::disk('public')->delete($path);
+            });
+
+            // Hapus data produk (variants dan images terhapus otomatis karena 'cascade on delete')
+            $product->delete();
+
+            DB::commit();
+
+            return response()->json(['message' => 'Produk berhasil dihapus!'], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Gagal menghapus produk: ' . $e->getMessage()], 500);
+        }
     }
 }
