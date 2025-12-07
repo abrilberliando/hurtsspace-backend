@@ -201,13 +201,17 @@ class DatabaseSeeder extends Seeder
             for ($k = 0; $k < 5; $k++) {
                 $isPrimary = ($k === 0);
 
+                // 👇 FIX: Tambahkan sort_order (k+1)
+                $sortOrder = $k + 1;
+
                 // Seed unik biar gambarnya gak kembar semua se-website
                 $seed = "hurts" . $product->id . $k . Str::random(3);
 
                 ProductImage::create([
                     'product_id' => $product->id,
                     'image_url' => "https://picsum.photos/seed/{$seed}/800/800",
-                    'is_primary' => $isPrimary
+                    'is_primary' => $isPrimary,
+                    'sort_order' => $sortOrder // 👈 PENTING: Assign urutan 1 sampai 5
                 ]);
             }
         }
@@ -229,9 +233,9 @@ class DatabaseSeeder extends Seeder
             // Random tag 1-3 produk di setiap lookbook
             $totalTags = rand(1, 3);
             for($t=0; $t < $totalTags; $t++) {
-                 $randomProdId = $allProductIds[array_rand($allProductIds)];
+                $randomProdId = $allProductIds[array_rand($allProductIds)];
 
-                 LookbookItem::create([
+                LookbookItem::create([
                     'lookbook_id' => $lookbook->id,
                     'product_id' => $randomProdId,
                     'x_position' => rand(20, 80),

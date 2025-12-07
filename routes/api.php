@@ -103,7 +103,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Products Management
         Route::post('/products', [ProductController::class, 'store']); // CREATE
-        Route::post('/products/{id}', [ProductController::class, 'update']); // UPDATE
+        Route::apiResource('products', ProductController::class); // UPDATE
         Route::delete('/products/{id}', [ProductController::class, 'destroy']); // DELETE
         Route::put('/products/{id}/featured', [ProductController::class, 'setFeatured']); // SET FEATURED
 

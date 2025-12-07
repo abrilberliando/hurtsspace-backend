@@ -30,8 +30,8 @@ class BannerController extends Controller
         $request->validate([
             'title' => 'required|string',
             'position' => 'required|in:1,2', // 👈 Validasi Posisi (1 atau 2)
-            'image_left' => 'required|image|max:2048', // Max 2MB
-            'image_right' => 'required|image|max:2048',
+            'image_left' => 'required|image|max:10240', // Max 2MB
+            'image_right' => 'required|image|max:10240',
             'link_url' => 'required|string',
         ]);
 
