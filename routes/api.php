@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\ProductController; // 👈 PENTING
+use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\BannerController;
 use App\Http\Controllers\Api\HeroSectionController;
@@ -22,7 +22,7 @@ use App\Http\Middleware\IsAdmin;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes
+| API Routes - HURTSSPACE (FIXED ROUTING ORDER)
 |--------------------------------------------------------------------------
 */
 
@@ -34,10 +34,16 @@ use App\Http\Middleware\IsAdmin;
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
-// Produk & Kategori (READ PUBLIC)
+// --- PRODUK & KATEGORI (URUTAN PENTING!) ---
 Route::get('/products', [ProductController::class, 'index']);
-// FIX: Pake ID untuk show, karena slug hanya di Frontend
-Route::get('/products/{id}', [ProductController::class, 'show']);
+
+// 🔥 [PENTING] "featured" HARUS DI ATAS "{id}"
+// Kalau kebalik, "featured" bakal dianggap sebagai ID produk (404 Not Found)
+Route::get('/products/featured', [ProductController::class, 'getFeatured']);
+
+// Baru setelah itu rute ID (Wildcard)
+Route::get('/products/{slug}', [ProductController::class, 'show']);
+
 Route::get('/categories', [CategoryController::class, 'index']);
 
 // Banner & Hero
@@ -95,10 +101,11 @@ Route::middleware('auth:sanctum')->group(function () {
         // Hero Management
         Route::post('/admin/hero-section', [HeroSectionController::class, 'update']);
 
-        // PRODUCTS MANAGEMENT (CRUD)
+        // Products Management
         Route::post('/products', [ProductController::class, 'store']); // CREATE
-        Route::post('/products/{id}', [ProductController::class, 'update']); // UPDATE (Pake POST karena ada file upload)
+        Route::post('/products/{id}', [ProductController::class, 'update']); // UPDATE
         Route::delete('/products/{id}', [ProductController::class, 'destroy']); // DELETE
+        Route::put('/products/{id}/featured', [ProductController::class, 'setFeatured']); // SET FEATURED
 
         // Banners
         Route::get('/admin/banners', [BannerController::class, 'index']);

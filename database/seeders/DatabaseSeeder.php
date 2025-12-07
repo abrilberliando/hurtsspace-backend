@@ -10,15 +10,23 @@ use App\Models\ProductImage;
 use App\Models\Lookbook;
 use App\Models\LookbookItem;
 use App\Models\Voucher;
-use App\Models\Banner; // 👈 Jangan lupa import model Banner
+use App\Models\Banner;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Faker\Factory as Faker;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. USERS (Admin & Member)
+        // Pake Faker ID biar datanya 'Lokal Pride' tapi tetep aesthetic
+        $faker = Faker::create('id_ID');
+
+        // ==========================================
+        // 1. USERS (Total 10: 1 Admin, 1 Member Fixed, 8 Random)
+        // ==========================================
+
         User::create([
             'name' => 'Admin Hurts',
             'email' => 'admin@hurtsspace.com',
@@ -38,16 +46,61 @@ class DatabaseSeeder extends Seeder
             'avatar' => 'https://ui-avatars.com/api/?name=Zidan+Buyer&background=random'
         ]);
 
-        // 2. BANNERS (Split Banner Home) 🔥
+        for ($i = 0; $i < 8; $i++) {
+            User::create([
+                'name' => $faker->name,
+                'email' => $faker->unique()->safeEmail,
+                'password' => Hash::make('password'),
+                'role' => 'member',
+                'points' => rand(0, 500),
+                'phone' => $faker->phoneNumber,
+                'address_detail' => $faker->address,
+                'avatar' => 'https://ui-avatars.com/api/?name=' . urlencode($faker->name) . '&background=random'
+            ]);
+        }
+
+        // ==========================================
+        // 2. BANNERS (AESTHETIC MODEL PHOTOS)
+        // ==========================================
+
+        $aestheticImages = [
+            'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800&q=80',
+            'https://images.unsplash.com/photo-1529139574466-a302391d9bd5?w=800&q=80',
+            'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80',
+            'https://images.unsplash.com/photo-1503341455253-b2e72333dbdb?w=800&q=80',
+            'https://images.unsplash.com/photo-1617127365659-c47fa864d8bc?w=800&q=80',
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&q=80',
+            'https://images.unsplash.com/photo-1520975661595-6453be3f7070?w=800&q=80',
+            'https://images.unsplash.com/photo-1506619215786-1017528184f8?w=800&q=80',
+            'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=800&q=80',
+            'https://images.unsplash.com/photo-1504194921103-f8b80cadd5e4?w=800&q=80',
+        ];
+
         Banner::create([
-            'title' => 'CORE NEW SEASON',
-            'image_left' => 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
-            'image_right' => 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?q=80&w=1000&auto=format&fit=crop',
+            'title' => 'SEASON 01: GENESIS',
+            'image_left' => $aestheticImages[0],
+            'image_right' => $aestheticImages[1],
             'link_url' => '/shop?sort=new',
             'is_active' => true,
         ]);
 
-        // 3. VOUCHERS 🎟️
+        for ($i = 1; $i < 10; $i++) {
+            $imgLeft = $aestheticImages[rand(0, 9)];
+            $imgRight = $aestheticImages[rand(0, 9)];
+
+            Banner::create([
+                'title' => 'ARCHIVE COLLECTION VOL.' . $i,
+                'image_left' => $imgLeft,
+                'image_right' => $imgRight,
+                'link_url' => '/shop?collection=vol-' . $i,
+                'is_active' => $i < 5,
+            ]);
+        }
+
+        // ==========================================
+        // 3. VOUCHERS
+        // ==========================================
+
         Voucher::create([
             'code' => 'HURTSLAUNCH',
             'discount_type' => 'fixed',
@@ -60,73 +113,131 @@ class DatabaseSeeder extends Seeder
         Voucher::create([
             'code' => 'DISKON10',
             'discount_type' => 'percent',
-            'discount_amount' => 10, // 10%
+            'discount_amount' => 10,
             'stock' => 100,
             'start_date' => now(),
             'end_date' => now()->addMonths(1),
         ]);
 
+        for ($i = 0; $i < 8; $i++) {
+            Voucher::create([
+                'code' => 'PROMO' . strtoupper($faker->bothify('??##')),
+                'discount_type' => $faker->randomElement(['fixed', 'percent']),
+                'discount_amount' => rand(1, 5) * 10000,
+                'stock' => rand(10, 50),
+                'start_date' => now(),
+                'end_date' => now()->addWeeks(rand(1, 4)),
+            ]);
+        }
+
+        // ==========================================
         // 4. CATEGORIES
-        $catTshirt = Category::create(['name' => 'T-Shirts', 'slug' => 't-shirts']);
-        $catOuter = Category::create(['name' => 'Outerwear', 'slug' => 'outerwear']);
-        $catPants = Category::create(['name' => 'Pants', 'slug' => 'pants']);
+        // ==========================================
 
-        // 5. PRODUCTS
+        $categories = [
+            'T-Shirts', 'Hoodies', 'Jackets', 'Cargo Pants',
+            'Denim', 'Shorts', 'Vests', 'Knitwear', 'Headwear', 'Socks'
+        ];
 
-        // Produk 1: Kaos
-        $prod1 = Product::create([
-            'category_id' => $catTshirt->id,
-            'name' => 'Hurts Heavyweight Tee - Black',
-            'slug' => 'hurts-heavyweight-tee-black',
-            'description' => "Material: 100% Cotton 24s (Heavyweight).\nFit: Boxy Oversized.\nDetails: High density plastisol print at chest.",
-            'price' => 189000,
-            'weight' => 250,
-            'is_new_arrival' => true,
-        ]);
+        $catIds = [];
 
-        foreach (['S', 'M', 'L', 'XL'] as $size) {
-            ProductVariant::create(['product_id' => $prod1->id, 'size' => $size, 'stock' => 20]);
+        foreach ($categories as $catName) {
+            $cat = Category::create([
+                'name' => $catName,
+                'slug' => Str::slug($catName)
+            ]);
+            $catIds[] = $cat->id;
         }
 
-        ProductImage::create([
-            'product_id' => $prod1->id,
-            'image_url' => 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=800&q=80',
-            'is_primary' => true
-        ]);
+        // ==========================================
+        // 5. PRODUCTS (AUTO GENERATE 100 ITEMS)
+        // ==========================================
+        // Kita bikin "Bank Kata" biar namanya variatif dan random tapi tetep logis
 
-        // Produk 2: Hoodie
-        $prod2 = Product::create([
-            'category_id' => $catOuter->id,
-            'name' => 'Hurts Signature Hoodie - Grey',
-            'slug' => 'hurts-signature-hoodie-grey',
-            'description' => "Material: Fleece 330gsm.\nFit: Relaxed Fit.\nDetails: Embroidered logo.",
-            'price' => 450000,
-            'weight' => 600,
-            'is_collab' => true,
-        ]);
+        $adjectives = ['Heavyweight', 'Essential', 'Distressed', 'Vintage', 'Tactical', 'Boxy', 'Oversized', 'Signature', 'Acid Wash', 'Ripstop', 'Utility', 'Core'];
+        $productTypes = ['T-Shirt', 'Hoodie', 'Cargo Pants', 'Denim Jacket', 'Varsity Jacket', 'Sweatpants', 'Knit Sweater', 'Puffer Vest', 'Shorts', 'Work Jacket'];
+        $colors = ['Jet Black', 'Ash Grey', 'Olive Drab', 'Navy', 'Charcoal', 'Off-White', 'Earth Brown', 'Washed Indigo', 'Sand', 'Matte Black'];
 
-        foreach (['M', 'L', 'XL'] as $size) {
-            ProductVariant::create(['product_id' => $prod2->id, 'size' => $size, 'stock' => 15]);
+        for ($i = 0; $i < 100; $i++) {
+            $randomCatId = $catIds[array_rand($catIds)];
+
+            // Mix and Match Nama
+            $adj = $adjectives[array_rand($adjectives)];
+            $type = $productTypes[array_rand($productTypes)];
+            $color = $colors[array_rand($colors)];
+
+            $name = "{$adj} {$type} - {$color}";
+
+            // Biar slug gak nabrak kalau ada nama sama persis, tambahin random string dikit di slug
+            $slug = Str::slug($name) . '-' . Str::random(5);
+
+            $material = $faker->randomElement(['Cotton Combat 20s', 'Heavyweight Fleece 375gsm', 'Japanese Denim 14oz', 'Nylon Crinkle', 'French Terry']);
+            $fit = $faker->randomElement(['Boxy Fit', 'Oversized', 'Relaxed Fit', 'Cropped', 'Regular Fit']);
+
+            // Harga random tapi masuk akal (antara 150rb - 850rb)
+            $price = rand(15, 85) * 10000;
+
+            $product = Product::create([
+                'category_id' => $randomCatId,
+                'name' => $name,
+                'slug' => $slug,
+                'description' => "Engineered for durability and style.\n\nMaterial: {$material}.\nFit: {$fit}.\n\nCare Instructions: Machine wash cold, hang dry. Do not bleach.",
+                'price' => $price,
+                'weight' => rand(300, 900),
+                'is_new_arrival' => $i < 10, // 10 produk pertama jadi New Arrival
+                'is_collab' => ($i % 20 == 0), // Tiap kelipatan 20 jadi produk collab
+            ]);
+
+            // Variants (Sizes)
+            foreach (['S', 'M', 'L', 'XL'] as $size) {
+                ProductVariant::create([
+                    'product_id' => $product->id,
+                    'size' => $size,
+                    'stock' => rand(0, 50) // Ada yg 0 biar keliatan sold out dikit
+                ]);
+            }
+
+            // 5 Foto Per Produk
+            for ($k = 0; $k < 5; $k++) {
+                $isPrimary = ($k === 0);
+
+                // Seed unik biar gambarnya gak kembar semua se-website
+                $seed = "hurts" . $product->id . $k . Str::random(3);
+
+                ProductImage::create([
+                    'product_id' => $product->id,
+                    'image_url' => "https://picsum.photos/seed/{$seed}/800/800",
+                    'is_primary' => $isPrimary
+                ]);
+            }
         }
 
-        ProductImage::create([
-            'product_id' => $prod2->id,
-            'image_url' => 'https://images.unsplash.com/photo-1556906781-9a412961d289?auto=format&fit=crop&w=800&q=80',
-            'is_primary' => true
-        ]);
-
+        // ==========================================
         // 6. LOOKBOOK
-        $lookbook = Lookbook::create([
-            'title' => 'Urban Explorer Vol.1',
-            'image_url' => 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?auto=format&fit=crop&w=800&q=80'
-        ]);
+        // ==========================================
 
-        // Tag Hoodie di foto lookbook
-        LookbookItem::create([
-            'lookbook_id' => $lookbook->id,
-            'product_id' => $prod2->id,
-            'x_position' => 50,
-            'y_position' => 40,
-        ]);
+        $allProductIds = Product::pluck('id')->toArray();
+
+        for ($i = 1; $i <= 8; $i++) {
+            $lookbookImg = $aestheticImages[rand(0, 9)];
+
+            $lookbook = Lookbook::create([
+                'title' => 'Editorial Campaign Vol.' . $i,
+                'image_url' => $lookbookImg
+            ]);
+
+            // Random tag 1-3 produk di setiap lookbook
+            $totalTags = rand(1, 3);
+            for($t=0; $t < $totalTags; $t++) {
+                 $randomProdId = $allProductIds[array_rand($allProductIds)];
+
+                 LookbookItem::create([
+                    'lookbook_id' => $lookbook->id,
+                    'product_id' => $randomProdId,
+                    'x_position' => rand(20, 80),
+                    'y_position' => rand(20, 80),
+                ]);
+            }
+        }
     }
 }
