@@ -96,7 +96,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard', [AdminDashboardController::class, 'index']);
 
         // Hero Management (FIXED: Karena Hero Section cuma 1 row)
-        Route::put('/hero-section', [HeroSectionController::class, 'update']); // Menggunakan PUT untuk update
+        Route::post('/hero-section', [HeroSectionController::class, 'update']); // Menggunakan PUT untuk update
 
         // 💥 PRODUCTS MANAGEMENT (MENGGUNAKAN API RESOURCE EFEKTIF)
         // apiResource otomatis mencakup: index, show, store, update, destroy
