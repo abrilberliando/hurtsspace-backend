@@ -11,6 +11,7 @@ use App\Models\Lookbook;
 use App\Models\LookbookItem;
 use App\Models\Voucher;
 use App\Models\Banner;
+use App\Models\HeroSection; // 👈 MODEL BARU: Asumsi lo punya model ini
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -64,16 +65,16 @@ class DatabaseSeeder extends Seeder
         // ==========================================
 
         $aestheticImages = [
-            'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800&q=80',
-            'https://images.unsplash.com/photo-1529139574466-a302391d9bd5?w=800&q=80',
-            'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&q=80',
-            'https://images.unsplash.com/photo-1503341455253-b2e72333dbdb?w=800&q=80',
-            'https://images.unsplash.com/photo-1617127365659-c47fa864d8bc?w=800&q=80',
-            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&q=80',
-            'https://images.unsplash.com/photo-1520975661595-6453be3f7070?w=800&q=80',
-            'https://images.unsplash.com/photo-1506619215786-1017528184f8?w=800&q=80',
-            'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=800&q=80',
-            'https://images.unsplash.com/photo-1504194921103-f8b80cadd5e4?w=800&q=80',
+            'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=1920&q=80', // Ubah size ke 1920
+            'https://images.unsplash.com/photo-1529139574466-a302391d9bd5?w=1920&q=80', // Ubah size ke 1920
+            'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1920&q=80', // Ubah size ke 1920
+            'https://images.unsplash.com/photo-1503341455253-b2e72333dbdb?w=1920&q=80', // Ubah size ke 1920
+            'https://images.unsplash.com/photo-1617127365659-c47fa864d8bc?w=1920&q=80', // Ubah size ke 1920
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1920&q=80', // Ubah size ke 1920
+            'https://images.unsplash.com/photo-1520975661595-6453be3f7070?w=1920&q=80', // Ubah size ke 1920
+            'https://images.unsplash.com/photo-1506619215786-1017528184f8?w=1920&q=80', // Ubah size ke 1920
+            'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=1920&q=80', // Ubah size ke 1920
+            'https://images.unsplash.com/photo-1504194921103-f8b80cadd5e4?w=1920&q=80', // Ubah size ke 1920
         ];
 
         Banner::create([
@@ -201,7 +202,7 @@ class DatabaseSeeder extends Seeder
             for ($k = 0; $k < 5; $k++) {
                 $isPrimary = ($k === 0);
 
-                // 👇 FIX: Tambahkan sort_order (k+1)
+                // FIX: Tambahkan sort_order (k+1)
                 $sortOrder = $k + 1;
 
                 // Seed unik biar gambarnya gak kembar semua se-website
@@ -211,7 +212,7 @@ class DatabaseSeeder extends Seeder
                     'product_id' => $product->id,
                     'image_url' => "https://picsum.photos/seed/{$seed}/800/800",
                     'is_primary' => $isPrimary,
-                    'sort_order' => $sortOrder // 👈 PENTING: Assign urutan 1 sampai 5
+                    'sort_order' => $sortOrder // PENTING: Assign urutan 1 sampai 5
                 ]);
             }
         }
@@ -243,5 +244,24 @@ class DatabaseSeeder extends Seeder
                 ]);
             }
         }
+
+        // ==========================================
+        // 7. HERO SECTION (BARU)
+        // ==========================================
+
+        // Ambil 5 gambar besar yang udah di-define di atas buat Hero Slider
+        $heroImages = array_slice($aestheticImages, 0, 5);
+
+        // Data Hero Section cuma 1 row
+        HeroSection::create([
+            'title' => 'CORE COLLECTION V.03',
+            'subtitle' => 'PREMIUM STREETWEAR',
+            'description' => 'Introducing the third iteration of our Core Collection. Minimalist design, maximized comfort, engineered for the street.',
+            'button_text' => 'SHOP NEW DROPS',
+            'button_link' => '/shop?new=true',
+            // Gunakan JSON untuk menyimpan array gambar (penting untuk Eloquent/Migration)
+            'background_images' => json_encode($heroImages),
+        ]);
+
     }
 }

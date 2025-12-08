@@ -34,15 +34,11 @@ use App\Http\Middleware\IsAdmin;
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
-// --- PRODUK & KATEGORI (URUTAN PENTING!) ---
+// --- PRODUK & KATEGORI (FIXED ORDER) ---
+// Rute spesifik/custom harus di atas rute wildcard ({slug})
 Route::get('/products', [ProductController::class, 'index']);
-
-// 🔥 [PENTING] "featured" HARUS DI ATAS "{id}"
-// Kalau kebalik, "featured" bakal dianggap sebagai ID produk (404 Not Found)
-Route::get('/products/featured', [ProductController::class, 'getFeatured']);
-
-// Baru setelah itu rute ID (Wildcard)
-Route::get('/products/{slug}', [ProductController::class, 'show']);
+Route::get('/products/featured', [ProductController::class, 'getFeatured']); // 🔥 Ditaruh di atas rute {slug}
+Route::get('/products/{slug}', [ProductController::class, 'show']); // Wildcard untuk detail produk
 
 Route::get('/categories', [CategoryController::class, 'index']);
 
@@ -78,6 +74,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Orders
     Route::get('/orders', [OrderController::class, 'index']);
     Route::get('/orders/{invoice}', [OrderController::class, 'show']);
+    // Note: ID di sini diasumsikan sebagai primary key ID Order, bukan invoice
     Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel']);
     Route::post('/orders/{id}/complete', [OrderController::class, 'complete']);
 
@@ -93,40 +90,43 @@ Route::middleware('auth:sanctum')->group(function () {
     // ====================================================================
     // 🔴 3. ADMIN ONLY ROUTES (Middleware IsAdmin)
     // ====================================================================
-    Route::middleware(IsAdmin::class)->group(function () {
+    Route::middleware(IsAdmin::class)->prefix('admin')->group(function () {
 
         // Dashboard
-        Route::get('/admin/dashboard', [AdminDashboardController::class, 'index']);
+        Route::get('/dashboard', [AdminDashboardController::class, 'index']);
 
-        // Hero Management
-        Route::post('/admin/hero-section', [HeroSectionController::class, 'update']);
+        // Hero Management (FIXED: Karena Hero Section cuma 1 row)
+        Route::put('/hero-section', [HeroSectionController::class, 'update']); // Menggunakan PUT untuk update
 
-        // Products Management
-        Route::post('/products', [ProductController::class, 'store']); // CREATE
-        Route::apiResource('products', ProductController::class); // UPDATE
-        Route::delete('/products/{id}', [ProductController::class, 'destroy']); // DELETE
-        Route::put('/products/{id}/featured', [ProductController::class, 'setFeatured']); // SET FEATURED
+        // 💥 PRODUCTS MANAGEMENT (MENGGUNAKAN API RESOURCE EFEKTIF)
+        // apiResource otomatis mencakup: index, show, store, update, destroy
+        Route::apiResource('products', ProductController::class)->except(['index', 'show']);
+        // Tambahkan rute kustom yang tidak tercakup apiResource
+        Route::put('/products/{id}/featured', [ProductController::class, 'setFeatured']);
 
-        // Banners
-        Route::get('/admin/banners', [BannerController::class, 'index']);
-        Route::post('/admin/banners', [BannerController::class, 'store']);
-        Route::delete('/admin/banners/{id}', [BannerController::class, 'destroy']);
-        Route::put('/admin/banners/{id}/toggle', [BannerController::class, 'toggleActive']);
+
+        // BANNERS (MENGGUNAKAN API RESOURCE EFEKTIF)
+        // Rute untuk GET Index & Show disatukan di sini (Admin/Member/Guest tidak perlu rute show Banner)
+        Route::apiResource('banners', BannerController::class)->except(['show', 'update']);
+        // Tambahkan rute kustom
+        Route::put('/banners/{id}/toggle', [BannerController::class, 'toggleActive']);
+        // Ubah rute update (karena resource-nya dibuat 'banners')
+        Route::put('/banners/{id}', [BannerController::class, 'update']);
+
 
         // Orders
-        Route::get('/admin/orders', [AdminOrderController::class, 'index']);
-        Route::put('/admin/orders/{id}', [AdminOrderController::class, 'updateStatus']);
+        Route::get('/orders', [AdminOrderController::class, 'index']);
+        Route::get('/orders/{id}', [AdminOrderController::class, 'show']); // Tambah rute show
+        Route::put('/orders/{id}', [AdminOrderController::class, 'updateStatus']);
 
-        // Lookbooks
-        Route::get('/admin/lookbooks', [AdminLookbookController::class, 'index']);
-        Route::post('/admin/lookbooks', [AdminLookbookController::class, 'store']);
-        Route::delete('/admin/lookbooks/{id}', [AdminLookbookController::class, 'destroy']);
 
-        // Vouchers
-        Route::get('/admin/vouchers', [AdminVoucherController::class, 'index']);
-        Route::post('/admin/vouchers', [AdminVoucherController::class, 'store']);
-        Route::delete('/admin/vouchers/{id}', [AdminVoucherController::class, 'destroy']);
+        // Lookbooks (MENGGUNAKAN API RESOURCE EFEKTIF)
+        Route::apiResource('lookbooks', AdminLookbookController::class)->except(['show', 'update']);
+        Route::put('/lookbooks/{id}', [AdminLookbookController::class, 'update']); // Tambah rute update
 
+        // Vouchers (MENGGUNAKAN API RESOURCE EFEKTIF)
+        Route::apiResource('vouchers', AdminVoucherController::class)->except(['show', 'update']);
+        Route::put('/vouchers/{id}', [AdminVoucherController::class, 'update']); // Tambah rute update
     });
 
 });
