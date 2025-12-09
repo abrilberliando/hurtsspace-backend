@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -17,6 +16,18 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+
+            // Custom Fields Hurtsspace
+            $table->enum('role', ['admin', 'member'])->default('member'); // Buat misahin bos sama customer
+            $table->integer('points')->default(0); // Tabungan Poin Society
+            $table->string('avatar')->nullable();
+
+            // Data Alamat Default (Buat Ongkir Otomatis)
+            $table->string('phone')->nullable();
+            $table->string('province_id')->nullable(); // ID dari API RajaOngkir/Biteship
+            $table->string('city_id')->nullable();     // ID dari API RajaOngkir/Biteship
+            $table->text('address_detail')->nullable(); // Jalan, RT/RW
+
             $table->rememberToken();
             $table->timestamps();
         });
