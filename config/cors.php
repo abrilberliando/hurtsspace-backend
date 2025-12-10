@@ -8,6 +8,7 @@ return [
 
     'allowed_origins' => [
         'https://hurtsspace.com',
+        'http://localhost:3000',
     ],
 
     'allowed_origins_patterns' => [],
