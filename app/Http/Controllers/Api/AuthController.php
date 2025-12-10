@@ -7,7 +7,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -99,7 +99,7 @@ class AuthController extends Controller
     }
 
     // 👇 5. UPDATE PROFILE (Updated with Smart Resize Avatar)
-    public function updateProfile(Request $request)
+     public function updateProfile(Request $request)
     {
         $user = $request->user();
 
@@ -110,7 +110,7 @@ class AuthController extends Controller
             'address_detail' => 'nullable|string',
             'city_id' => 'nullable|string',
             'province_id' => 'nullable|string',
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120', // Tambah webp
         ], [
             'avatar.max' => 'Waduh, fotonya kegedean G! Maksimal 5MB ya.',
             'avatar.image' => 'File harus berupa gambar.',
@@ -123,9 +123,10 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Simpan state avatar lama (buat jaga-jaga kalau error)
+        // 👇 FIX UTAMA: INI HARUS DI-DECLARE SEBELUM TRY BLOCK!
         $oldAvatarUrl = $user->avatar;
         $newFilename = null;
+        $shouldDeleteOldFile = false; // 👈 INI HARUS DI-DECLARE AWAL
 
         // 👇 START DATABASE TRANSACTION
         DB::beginTransaction();
@@ -133,7 +134,7 @@ class AuthController extends Controller
         try {
             // Handle Upload Foto (Kalau ada)
             if ($request->hasFile('avatar')) {
-                // 1. Hapus foto lama (hanya URL di DB, bukan di disk dulu)
+                // 1. Tentukan apakah file lama perlu dihapus
                 $shouldDeleteOldFile = $user->avatar && !Str::contains($user->avatar, ['ui-avatars.com', 'default']);
 
                 // 2. Setup Manager & Proses Resize (Intervention Image)
@@ -141,11 +142,11 @@ class AuthController extends Controller
                 $image = $manager->read($request->file('avatar')->getRealPath());
                 $image->cover(500, 500);
 
-                // 3. Simpan ke Storage (DI LAKUKAN DI SINI)
+                // 3. Simpan ke Storage
                 $newFilename = 'avatar_' . $user->id . '_' . time() . '.webp';
                 Storage::disk('public')->put('avatars/' . $newFilename, $image->encode());
 
-                // 4. Update URL di object user (SIAP DISAVE)
+                // 4. Update URL di object user
                 $user->avatar = url('storage/avatars/' . $newFilename);
             }
 
@@ -159,6 +160,7 @@ class AuthController extends Controller
 
             // 5. Simpan ke Database (KALAU INI BERHASIL, BARU COMMIT)
             $user->save();
+            $user->refresh(); // Ambil data terbaru (penting!)
 
             // 6. Hapus File Lama dari Disk (SETELAH DATABASE UPDATE SUKSES)
             if ($shouldDeleteOldFile) {
@@ -181,6 +183,9 @@ class AuthController extends Controller
             if ($newFilename) {
                  Storage::disk('public')->delete('avatars/' . $newFilename);
             }
+
+            // Tambahkan logging error asli
+            Log::error('Auth Update Profile Failed: ' . $e->getMessage(), ['exception' => $e]);
 
             return response()->json(['message' => 'Gagal memproses update profile: ' . $e->getMessage()], 500);
         }
