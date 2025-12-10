@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Middleware\IsAdmin;
+use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\EnsureHttpsAndHsts;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,10 +16,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+
+        $middleware->api(array_merge([
+            SecurityHeaders::class,
+            EnsureHttpsAndHsts::class,
+        ]));
+
         $middleware->alias([
             'is_admin' => IsAdmin::class,
             'throttle' => ThrottleRequests::class,
         ]);
+
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
