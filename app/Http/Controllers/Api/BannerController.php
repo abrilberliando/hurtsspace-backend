@@ -16,10 +16,24 @@ class BannerController extends Controller
     // 1. PUBLIC: Ambil SEMUA Banner yang Statusnya AKTIF
     public function getActive()
     {
-        // Cache bisa diurus di level server/frontend, di sini raw data aja
+        // Ambil data dari DB
         $banners = Banner::where('is_active', true)
             ->orderBy('created_at', 'desc')
             ->get();
+
+        // 👇 FIX: Transformasi Data sebelum dikirim ke Frontend
+        $banners->transform(function ($banner) {
+            // 1. Pastikan Position adalah Integer (Biar match sama frontend)
+            $banner->position = (int) $banner->position;
+
+            // 2. Paksa URL Gambar jadi HTTPS di Production (Anti Mixed Content)
+            if (app()->environment('production')) {
+                $banner->image_left = str_replace('http://', 'https://', $banner->image_left);
+                $banner->image_right = str_replace('http://', 'https://', $banner->image_right);
+            }
+
+            return $banner;
+        });
 
         return response()->json(['data' => $banners]);
     }
