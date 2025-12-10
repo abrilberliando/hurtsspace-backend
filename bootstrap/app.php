@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Middleware\IsAdmin;
-// use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\EnsureHttpsAndHsts;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -20,7 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Middleware Group Default
         $middleware->api(array_merge([
-            // SecurityHeaders::class,
+            SecurityHeaders::class,
             EnsureHttpsAndHsts::class,
         ]));
 
