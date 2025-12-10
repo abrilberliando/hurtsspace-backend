@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\AdminLookbookController;
 use App\Http\Controllers\Api\AdminVoucherController;
 use App\Http\Controllers\Api\AdminDashboardController;
 use App\Http\Middleware\IsAdmin;
+use Illuminate\Routing\Middleware\ThrottleRequests;
+use App\Http\Middleware\EnsureHttpsAndHsts;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,8 +33,13 @@ use App\Http\Middleware\IsAdmin;
 // ========================================================================
 
 // Auth
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::middleware([EnsureHttpsAndHsts::class, 'throttle:auth_public'])->group(function () {
+    // Auth
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
+    // Webhook Midtrans
+    Route::post('/webhooks/midtrans', [WebhookController::class, 'handler']);
+});
 
 // --- PRODUK & KATEGORI (FIXED ORDER) ---
 // Rute spesifik/custom harus di atas rute wildcard ({slug})
@@ -50,48 +57,48 @@ Route::get('/hero-section', [HeroSectionController::class, 'show']);
 Route::get('/lookbooks', [LookbookController::class, 'index']);
 Route::get('/lookbooks/{id}', [LookbookController::class, 'show']);
 
-// Webhook Midtrans
-Route::post('/webhooks/midtrans', [WebhookController::class, 'handler']);
+
 
 
 // ========================================================================
 // 🟡 2. PROTECTED ROUTES (Login Member)
 // ========================================================================
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function () {
 
-    // User & Profile
+    Route::middleware(ThrottleRequests::class . ':auth_protected')->group(function () {
+        // User & Profile
+        Route::get('/user', [AuthController::class, 'me']);
+        Route::put('/user', [AuthController::class, 'updateProfile']);
+
+        // Cart & Checkout
+        Route::post('/checkout', [CheckoutController::class, 'checkout']);
+
+        // Shipping
+        Route::get('/shipping/areas', [ShippingController::class, 'searchArea']);
+        Route::post('/shipping/cost', [ShippingController::class, 'checkCost']);
+
+        // Orders
+        Route::get('/orders', [OrderController::class, 'index']);
+        Route::get('/orders/{invoice}', [OrderController::class, 'show']);
+        // Note: ID di sini diasumsikan sebagai primary key ID Order, bukan invoice
+        Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel']);
+        Route::post('/orders/{id}/complete', [OrderController::class, 'complete']);
+
+        // Wishlist
+        Route::get('/wishlist', [WishlistController::class, 'index']);
+        Route::post('/wishlist/toggle', [WishlistController::class, 'toggle']);
+        Route::get('/wishlist/check/{productId}', [WishlistController::class, 'check']);
+
+        // Voucher
+        Route::post('/vouchers/check', [VoucherController::class, 'check']);
+    });
+
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/user', [AuthController::class, 'me']);
-    Route::put('/user', [AuthController::class, 'updateProfile']);
-
-    // Cart & Checkout
-    Route::post('/checkout', [CheckoutController::class, 'checkout']);
-
-    // Shipping
-    Route::get('/shipping/areas', [ShippingController::class, 'searchArea']);
-    Route::post('/shipping/cost', [ShippingController::class, 'checkCost']);
-
-    // Orders
-    Route::get('/orders', [OrderController::class, 'index']);
-    Route::get('/orders/{invoice}', [OrderController::class, 'show']);
-    // Note: ID di sini diasumsikan sebagai primary key ID Order, bukan invoice
-    Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel']);
-    Route::post('/orders/{id}/complete', [OrderController::class, 'complete']);
-
-    // Wishlist
-    Route::get('/wishlist', [WishlistController::class, 'index']);
-    Route::post('/wishlist/toggle', [WishlistController::class, 'toggle']);
-    Route::get('/wishlist/check/{productId}', [WishlistController::class, 'check']);
-
-    // Voucher
-    Route::post('/vouchers/check', [VoucherController::class, 'check']);
-
 
     // ====================================================================
     // 🔴 3. ADMIN ONLY ROUTES (Middleware IsAdmin)
     // ====================================================================
-    Route::middleware(IsAdmin::class)->prefix('admin')->group(function () {
-
+    Route::middleware([IsAdmin::class, ThrottleRequests::class . ':auth_protected'])->prefix('admin')->group(function () {
         // Dashboard
         Route::get('/dashboard', [AdminDashboardController::class, 'index']);
 
@@ -104,7 +111,6 @@ Route::middleware('auth:sanctum')->group(function () {
         // Tambahkan rute kustom yang tidak tercakup apiResource
         Route::put('/products/{id}/featured', [ProductController::class, 'setFeatured']);
 
-
         // BANNERS (MENGGUNAKAN API RESOURCE EFEKTIF)
         // Rute untuk GET Index & Show disatukan di sini (Admin/Member/Guest tidak perlu rute show Banner)
         Route::apiResource('banners', BannerController::class)->except(['show', 'update']);
@@ -113,12 +119,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Ubah rute update (karena resource-nya dibuat 'banners')
         Route::put('/banners/{id}', [BannerController::class, 'update']);
 
-
         // Orders
         Route::get('/orders', [AdminOrderController::class, 'index']);
         Route::get('/orders/{id}', [AdminOrderController::class, 'show']); // Tambah rute show
         Route::put('/orders/{id}', [AdminOrderController::class, 'updateStatus']);
-
 
         // Lookbooks (MENGGUNAKAN API RESOURCE EFEKTIF)
         Route::apiResource('lookbooks', AdminLookbookController::class)->except(['show', 'update']);

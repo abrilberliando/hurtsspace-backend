@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage; // 👈 Jangan lupa import ini
-use Illuminate\Support\Str; // 👈 Ini juga buat cek string
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
 
 class AuthController extends Controller
 {
@@ -107,7 +110,6 @@ class AuthController extends Controller
             'address_detail' => 'nullable|string',
             'city_id' => 'nullable|string',
             'province_id' => 'nullable|string',
-            // Validasi Avatar: Harus gambar, max 5MB (biar lega dikit sebelum di-resize)
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
         ], [
             'avatar.max' => 'Waduh, fotonya kegedean G! Maksimal 5MB ya.',
@@ -121,99 +123,66 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Handle Upload Foto (Kalau ada)
-        if ($request->hasFile('avatar')) {
-            try {
-                // 1. Hapus foto lama kalau bukan avatar default
-                if ($user->avatar && !Str::contains($user->avatar, ['ui-avatars.com', 'default'])) {
-                    $oldPath = str_replace(url('storage') . '/', '', $user->avatar);
-                    Storage::disk('public')->delete($oldPath);
-                }
+        // Simpan state avatar lama (buat jaga-jaga kalau error)
+        $oldAvatarUrl = $user->avatar;
+        $newFilename = null;
 
-                // 2. Proses Resize & Crop (Native PHP)
-                $file = $request->file('avatar');
-                $filename = 'avatar_' . $user->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+        // 👇 START DATABASE TRANSACTION
+        DB::beginTransaction();
 
-                // Panggil fungsi helper private di bawah 👇
-                $resizedImageContent = $this->resizeImage($file, 500); // Resize ke 500x500px
+        try {
+            // Handle Upload Foto (Kalau ada)
+            if ($request->hasFile('avatar')) {
+                // 1. Hapus foto lama (hanya URL di DB, bukan di disk dulu)
+                $shouldDeleteOldFile = $user->avatar && !Str::contains($user->avatar, ['ui-avatars.com', 'default']);
 
-                // 3. Simpan ke Storage
-                Storage::disk('public')->put('avatars/' . $filename, $resizedImageContent);
+                // 2. Setup Manager & Proses Resize (Intervention Image)
+                $manager = new ImageManager(new Driver());
+                $image = $manager->read($request->file('avatar')->getRealPath());
+                $image->cover(500, 500);
 
-                // 4. Update URL di object user
-                $user->avatar = url('storage/avatars/' . $filename);
+                // 3. Simpan ke Storage (DI LAKUKAN DI SINI)
+                $newFilename = 'avatar_' . $user->id . '_' . time() . '.webp';
+                Storage::disk('public')->put('avatars/' . $newFilename, $image->encode());
 
-            } catch (\Exception $e) {
-                return response()->json(['message' => 'Gagal memproses gambar: ' . $e->getMessage()], 500);
+                // 4. Update URL di object user (SIAP DISAVE)
+                $user->avatar = url('storage/avatars/' . $newFilename);
             }
+
+            // Update Data Teks
+            $user->name = $request->name;
+
+            if ($request->has('phone')) $user->phone = $request->phone;
+            if ($request->has('address_detail')) $user->address_detail = $request->address_detail;
+            if ($request->has('city_id')) $user->city_id = $request->city_id;
+            if ($request->has('province_id')) $user->province_id = $request->province_id;
+
+            // 5. Simpan ke Database (KALAU INI BERHASIL, BARU COMMIT)
+            $user->save();
+
+            // 6. Hapus File Lama dari Disk (SETELAH DATABASE UPDATE SUKSES)
+            if ($shouldDeleteOldFile) {
+                $oldPath = str_replace(url('storage') . '/', '', $oldAvatarUrl);
+                Storage::disk('public')->delete($oldPath);
+            }
+
+            DB::commit(); // Transaksi aman, simpan semua perubahan
+
+            return response()->json([
+                'message' => 'Profile updated successfully',
+                'user' => $user
+            ]);
+
+        } catch (\Exception $e) {
+            // 👇 ROLLBACK JIKA ADA ERROR
+            DB::rollBack();
+
+            // Kalau ada file baru yang sempat disimpan, kita hapus file itu juga
+            if ($newFilename) {
+                 Storage::disk('public')->delete('avatars/' . $newFilename);
+            }
+
+            return response()->json(['message' => 'Gagal memproses update profile: ' . $e->getMessage()], 500);
         }
-
-        // Update Data Teks
-        $user->name = $request->name;
-
-        if ($request->has('phone')) $user->phone = $request->phone;
-        if ($request->has('address_detail')) $user->address_detail = $request->address_detail;
-        if ($request->has('city_id')) $user->city_id = $request->city_id;
-        if ($request->has('province_id')) $user->province_id = $request->province_id;
-
-        // Simpan ke Database
-        $user->save();
-
-        return response()->json([
-            'message' => 'Profile updated successfully',
-            'user' => $user
-        ]);
-    }
-
-    /**
-     * Helper Private: Resize & Center Crop Image (Square)
-     * Menggunakan native PHP GD Library biar gak perlu install package tambahan.
-     */
-    private function resizeImage($file, $targetSize)
-    {
-        $info = getimagesize($file);
-        $mime = $info['mime'];
-
-        // Load image berdasarkan tipe
-        switch ($mime) {
-            case 'image/jpeg': $source = imagecreatefromjpeg($file); break;
-            case 'image/png': $source = imagecreatefrompng($file); break;
-            case 'image/gif': $source = imagecreatefromgif($file); break;
-            default: throw new \Exception("Format gambar tidak didukung");
-        }
-
-        $width = imagesx($source);
-        $height = imagesy($source);
-
-        // Cari sisi terpendek buat patokan crop (biar jadi kotak)
-        $min = min($width, $height);
-        $offX = ($width - $min) / 2;
-        $offY = ($height - $min) / 2;
-
-        // Buat canvas baru kotak kosong
-        $newImage = imagecreatetruecolor($targetSize, $targetSize);
-
-        // Handle transparansi buat PNG/GIF
-        if ($mime == 'image/png' || $mime == 'image/gif') {
-            imagecolortransparent($newImage, imagecolorallocatealpha($newImage, 0, 0, 0, 127));
-            imagealphablending($newImage, false);
-            imagesavealpha($newImage, true);
-        }
-
-        // Copy, Crop (Tengah), dan Resize
-        imagecopyresampled($newImage, $source, 0, 0, $offX, $offY, $targetSize, $targetSize, $min, $min);
-
-        // Output ke buffer
-        ob_start();
-        if ($mime == 'image/jpeg') imagejpeg($newImage, null, 90); // Kualitas JPG 90
-        elseif ($mime == 'image/png') imagepng($newImage, null, 9);
-        elseif ($mime == 'image/gif') imagegif($newImage);
-        $content = ob_get_clean();
-
-        // Bersihin memori
-        imagedestroy($source);
-        imagedestroy($newImage);
-
-        return $content;
     }
 }
