@@ -21,17 +21,16 @@ class SecurityHeaders
         // 3. Mencegah MIME Type Sniffing (Security against wrong Content-Type)
         $response->headers->set('X-Content-Type-Options', 'nosniff');
 
-        // 👇 4. CONTENT SECURITY POLICY (CSP) - DI AKTIFKAN DENGAN WHITELIST
-        // Mengizinkan:
-        // a. 'self' (domain sendiri)
-        // b. 'unsafe-inline' (untuk style/script yang di-inject React/Tailwind)
-        // c. Domain Midtrans
-        // d. Data URI (untuk avatar fallback)
+        // 👇 4. CONTENT SECURITY POLICY (CSP) - DITAMBAH BITESHIP
         $csp = "default-src 'self'; ";
-        $csp .= "script-src 'self' 'unsafe-inline' https://cdn.midtrans.com https://app.sandbox.midtrans.com; ";
-        $csp .= "style-src 'self' 'unsafe-inline'; "; // Butuh unsafe-inline buat CSS framework
-        $csp .= "img-src 'self' * data: https://ui-avatars.com; "; // Memperbolehkan gambar eksternal & data URI
-        $csp .= "frame-src 'self' https://app.sandbox.midtrans.com; "; // Wajib buat Midtrans iframe
+
+        // Tambahkan https://api.biteship.com ke koneksi yang diizinkan (connect-src)
+        // Kita tambahkan juga ke script-src buat jaga-jaga kalau ada script dari sana
+        $csp .= "script-src 'self' 'unsafe-inline' https://cdn.midtrans.com https://app.sandbox.midtrans.com https://api.biteship.com; ";
+        $csp .= "connect-src 'self' https://api.biteship.com; "; // 👈 TAMBAHAN WAJIB BUAT API FETCH
+        $csp .= "style-src 'self' 'unsafe-inline'; ";
+        $csp .= "img-src 'self' * data: https://ui-avatars.com; ";
+        $csp .= "frame-src 'self' https://app.sandbox.midtrans.com; "; // Midtrans iframe
 
         $response->headers->set('Content-Security-Policy', $csp);
 
