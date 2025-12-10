@@ -24,10 +24,12 @@ class SecurityHeaders
         // 👇 4. CONTENT SECURITY POLICY (CSP) - DITAMBAH BITESHIP
         $csp = "default-src 'self'; ";
 
-        // Tambahkan https://api.biteship.com ke koneksi yang diizinkan (connect-src)
-        // Kita tambahkan juga ke script-src buat jaga-jaga kalau ada script dari sana
+        // Midtrans & Biteship script/data yang mungkin di load client-side
         $csp .= "script-src 'self' 'unsafe-inline' https://cdn.midtrans.com https://app.sandbox.midtrans.com https://api.biteship.com; ";
-        $csp .= "connect-src 'self' https://api.biteship.com; "; // 👈 TAMBAHAN WAJIB BUAT API FETCH
+
+        // 👇 WAJIB FIX: connect-src untuk API eksternal (Biteship)
+        $csp .= "connect-src 'self' https://api.biteship.com; "; // 👈 FIX DITAMBAH DI SINI
+
         $csp .= "style-src 'self' 'unsafe-inline'; ";
         $csp .= "img-src 'self' * data: https://ui-avatars.com; ";
         $csp .= "frame-src 'self' https://app.sandbox.midtrans.com; "; // Midtrans iframe
