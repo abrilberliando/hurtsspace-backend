@@ -8,8 +8,8 @@ return [
 
     'allowed_origins' => [
         'https://hurtsspace.com',
-        'http://localhost:3000',
-        'https://hurtsspace-frontend-abril-berliandos-projects.vercel.app',
+        'https://www.hurtsspace.com',
+        // 'http://localhost:3000',
     ],
 
     'allowed_origins_patterns' => [],
