@@ -12,10 +12,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Midtrans\Config;
 use Midtrans\Snap;
+use Illuminate\Support\Facades\Mail; // 👈 Wajib import Mail
+use App\Mail\OrderPlaced; // 👈 Wajib import Mailable Class
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
-    // 👇 0. CHECKOUT & PAYMENT (INI YANG LO CARI BUAT FIX HARGA)
+    // 👇 0. CHECKOUT & PAYMENT (CORE LOGIC)
     public function store(Request $request)
     {
         // 1. Validasi Input Dasar
@@ -24,8 +27,11 @@ class OrderController extends Controller
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.variant_id' => 'required|exists:product_variants,id',
             'items.*.quantity' => 'required|integer|min:1',
-            'shipping_cost' => 'required|integer', // Ongkir dari RajaOngkir
-            'address' => 'required|string',
+            'shipping_cost' => 'required|integer',
+            'shipping_courier' => 'nullable|string',
+            'shipping_service' => 'nullable|string',
+            'shipping_address' => 'required|string', // Pastikan key ini match sama FE
+            'voucher_code' => 'nullable|string',
         ]);
 
         DB::beginTransaction();
@@ -39,13 +45,13 @@ class OrderController extends Controller
             $orderItems = [];
             $midtransItems = [];
 
-            // 2. LOOPING ITEM BUAT HITUNG HARGA ASLI (JANGAN PERCAYA FRONTEND)
+            // 2. LOOPING ITEM BUAT HITUNG HARGA ASLI (ANTI-CHEAT)
             foreach ($request->items as $item) {
                 // Ambil data asli dari Database
                 $product = Product::findOrFail($item['product_id']);
                 $variant = ProductVariant::findOrFail($item['variant_id']);
 
-                // Cek Stok (Penting!)
+                // Cek Stok
                 if ($variant->stock < $item['quantity']) {
                     return response()->json(['message' => "Stok {$product->name} ukuran {$variant->size} abis, G!"], 400);
                 }
@@ -60,8 +66,8 @@ class OrderController extends Controller
                 $orderItems[] = [
                     'product_id' => $product->id,
                     'product_variant_id' => $variant->id,
-                    'product_name' => $product->name, // Simpan nama saat beli (snapshot)
-                    'variant_name' => $variant->size,
+                    'product_name' => $product->name, // Snapshot nama
+                    'variant_name' => $variant->size, // Snapshot size
                     'price' => $price,
                     'quantity' => $item['quantity'],
                     'subtotal' => $subtotal,
@@ -72,18 +78,18 @@ class OrderController extends Controller
                     'id' => $product->id . '-' . $variant->id,
                     'price' => $price,
                     'quantity' => $item['quantity'],
-                    'name' => substr($product->name, 0, 50), // Midtrans limit nama 50 char
+                    'name' => substr($product->name, 0, 50), // Limit nama 50 char
                 ];
 
                 // Kurangi Stok
                 $variant->decrement('stock', $item['quantity']);
             }
 
-            // 3. HITUNG GROSS AMOUNT (Subtotal + Ongkir - Diskon dll)
+            // 3. HITUNG GROSS AMOUNT (Subtotal + Ongkir - Diskon)
             $shippingCost = (int) $request->shipping_cost;
             $grossAmount = $realTotalAmount + $shippingCost;
 
-            // Masukin Ongkir ke list item Midtrans biar totalnya match
+            // Masukin Ongkir ke list item Midtrans
             if ($shippingCost > 0) {
                 $midtransItems[] = [
                     'id' => 'SHIP',
@@ -93,14 +99,20 @@ class OrderController extends Controller
                 ];
             }
 
+            // Handle Voucher (Logic Diskon bisa ditambahkan di sini jika ada)
+            // if ($request->voucher_code) { ... }
+
             // 4. SIMPAN ORDER UTAMA
             $order = Order::create([
                 'user_id' => $user->id,
                 'invoice_number' => $invoice,
-                'total_price' => $grossAmount, // Total yang harus dibayar
+                'total_price' => $grossAmount,
                 'status' => 'pending',
-                'shipping_address' => $request->address,
+                'shipping_address' => $request->shipping_address,
                 'shipping_cost' => $shippingCost,
+                'shipping_courier' => $request->shipping_courier,
+                'shipping_service' => $request->shipping_service,
+                // 'voucher_code' => $request->voucher_code,
             ]);
 
             // Simpan Detail Item
@@ -108,21 +120,22 @@ class OrderController extends Controller
                 $order->items()->create($itemData);
             }
 
-            // 5. KONFIGURASI MIDTRANS (Wajib Pake Env)
-            Config::$serverKey = config('midtrans.server_key');
-            Config::$isProduction = config('midtrans.is_production');
+            // 5. KONFIGURASI MIDTRANS
+            Config::$serverKey = config('midtrans.server_key') ?? env('MIDTRANS_SERVER_KEY');
+            Config::$isProduction = config('midtrans.is_production') ?? filter_var(env('MIDTRANS_IS_PRODUCTION'), FILTER_VALIDATE_BOOLEAN);
             Config::$isSanitized = true;
             Config::$is3ds = true;
 
             $params = [
                 'transaction_details' => [
                     'order_id' => $invoice,
-                    'gross_amount' => $grossAmount, // Total ini WAJIB SAMA dengan sum(midtransItems)
+                    'gross_amount' => $grossAmount,
                 ],
-                'item_details' => $midtransItems, // List item + ongkir
+                'item_details' => $midtransItems,
                 'customer_details' => [
                     'first_name' => $user->name,
                     'email' => $user->email,
+                    'phone' => $user->phone,
                 ],
             ];
 
@@ -134,10 +147,24 @@ class OrderController extends Controller
 
             DB::commit();
 
+            // 👇👇 TRIGGER EMAIL SETELAH COMMIT DB SUKSES 👇👇
+            try {
+                // Attach redirect URL ke object order secara dinamis untuk email view
+                $order->redirect_url = env('FRONTEND_URL', 'http://localhost:3000') . '/dashboard/orders';
+
+                // Kirim email
+                Mail::to($user->email)->send(new OrderPlaced($order));
+
+            } catch (\Exception $e) {
+                // Jangan sampe error email ngebatalin order, cukup log aja
+                Log::error('Gagal kirim email order: ' . $e->getMessage());
+            }
+
             return response()->json([
                 'message' => 'Order created successfully',
                 'snap_token' => $snapToken,
-                'redirect_url' => "https://app.sandbox.midtrans.com/snap/v2/vtweb/" . $snapToken // Opsional
+                // Redirect URL buat fallback kalau popup gagal
+                'redirect_url' => "https://app.sandbox.midtrans.com/snap/v2/vtweb/" . $snapToken
             ]);
 
         } catch (\Exception $e) {
@@ -150,7 +177,7 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $orders = Order::where('user_id', $request->user()->id)
-            ->with(['items.product.images', 'items.variant']) // Load images biar frontend ganteng
+            ->with(['items.product.images', 'items.variant'])
             ->latest()
             ->get();
 
@@ -205,5 +232,20 @@ class OrderController extends Controller
             DB::rollBack();
             return response()->json(['message' => 'Gagal cancel'], 500);
         }
+    }
+
+    // 4. SELESAIKAN PESANAN (Terima Barang)
+    public function complete($id) {
+        $order = Order::where('id', $id)
+            ->where('user_id', auth()->id())
+            ->where('status', 'shipped') // Cuma bisa complete kalau status shipped
+            ->first();
+
+        if (!$order) {
+            return response()->json(['message' => 'Order tidak valid untuk diselesaikan.'], 400);
+        }
+
+        $order->update(['status' => 'completed']);
+        return response()->json(['message' => 'Order selesai! Terima kasih.']);
     }
 }

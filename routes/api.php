@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\PasswordResetController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
@@ -37,8 +38,18 @@ Route::middleware([EnsureHttpsAndHsts::class, 'throttle:auth_public'])->group(fu
     // Auth
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/auth/firebase-sync', [AuthController::class, 'firebaseSync']);
+    Route::post('/auth/firebase-login', [AuthController::class, 'loginWithFirebase']);
     // Webhook Midtrans
     Route::post('/webhooks/midtrans', [WebhookController::class, 'handler']);
+    // 👇 ROUTE VERIFIKASI EMAIL (Harus Public tapi Signed)
+    Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+        ->name('verification.verify');
+    // 👇 ROUTE KIRIM ULANG VERIFIKASI (Sekarang Public via Email)
+    Route::post('/email/verification-notification', [AuthController::class, 'resendVerification']);
+    // RESET PASSWORD
+    Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink']);
+    Route::post('/reset-password', [PasswordResetController::class, 'resetPassword']);
 });
 
 // --- PRODUK & KATEGORI (FIXED ORDER) ---
