@@ -52,12 +52,21 @@ class AuthController extends Controller
             // 'uid' => (string) Str::uuid(), // Opsional kalau mau generate UID manual
         ]);
 
-        // 👇 SOLUSI FIX EMAIL: Panggil method kirim notifikasi secara LANGSUNG
-        // Ini mem-bypass Event Listener yang mungkin error/gak ke-load di Laravel 11/12
-        $user->sendEmailVerificationNotification();
+        try {
+            $user->sendEmailVerificationNotification();
 
+        } catch (\Throwable $e) { // 👈 TANGKAP SEMUA JENIS CRASH
+
+            // Catat errornya di log server (storage/logs/laravel.log)
+            Log::error('GAGAL KIRIM EMAIL REGISTER (BREVO CRASH?): ' . $e->getMessage());
+
+            // Kita kasih debug error spesifik di response kalau masih 500, biar lo tau penyakitnya.
+            // Tapi ini hanya kalau errornya beneran fatal dan nembus ke response.
+        }
+
+        // Tetap return sukses 201 karena akun SUDAH JADI
         return response()->json([
-            'message' => 'Registrasi berhasil! Cek email lo buat verifikasi akun sebelum login.',
+            'message' => 'Registrasi berhasil! Cek email lo buat verifikasi akun sebelum login (atau minta kirim ulang di halaman login).',
             'user' => $user,
         ], 201);
     }
