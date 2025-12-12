@@ -42,7 +42,7 @@ class HeroSectionController extends Controller
 
         // VALIDASI: Validasi 5 slot gambar
         $validationRules = [
-            'subtitle' => 'required|string|max:100',
+            'subtitle' => 'nullable|string|max:100',
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'button_text' => 'required|string|max:50',
@@ -51,7 +51,7 @@ class HeroSectionController extends Controller
 
         // Validasi untuk 5 gambar, bisa nullable
         for ($i = 0; $i < 5; $i++) {
-            $validationRules["background_image_{$i}"] = 'nullable|image|max:4096';
+            $validationRules["background_image_{$i}"] = 'nullable|image|max:10240';
             $validationRules["existing_image_{$i}"] = 'nullable|url|max:255';
         }
 
