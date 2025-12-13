@@ -17,7 +17,7 @@ class HeroSectionController extends Controller
             ['id' => 1],
             [
                 // Default value kalau database masih kosong
-                'title' => 'REDEFINE YOUR STREETWEAR.',
+                'title' => '',
                 // Gambar default sementara (pake array 1 elemen)
                 'background_images' => [
                     'https://images.unsplash.com/photo-1523396870179-16a196759575?q=80&w=1920&auto=format&fit=crop'
@@ -43,10 +43,10 @@ class HeroSectionController extends Controller
         // VALIDASI: Validasi 5 slot gambar
         $validationRules = [
             'subtitle' => 'nullable|string|max:100',
-            'title' => 'required|string|max:255',
+            'title' => 'nullable|string|max:255',
             'description' => 'nullable|string',
-            'button_text' => 'required|string|max:50',
-            'button_link' => 'required|string|max:255',
+            'button_text' => 'nullable|string|max:50',
+            'button_link' => 'nullable|string|max:255',
         ];
 
         // Validasi untuk 5 gambar, bisa nullable
