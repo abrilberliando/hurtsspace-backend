@@ -130,6 +130,9 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
         // Ubah rute update (karena resource-nya dibuat 'banners')
         Route::put('/banners/{id}', [BannerController::class, 'update']);
 
+        // Categories (MANAGE KATEGORI) 👇
+        Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
+
         // Orders
         Route::get('/orders', [AdminOrderController::class, 'index']);
         Route::get('/orders/{id}', [AdminOrderController::class, 'show']); // Tambah rute show

@@ -23,8 +23,8 @@ class AdminLookbookController extends Controller
     {
         // 1. Ubah validasi items jadi 'json' (karena dikirim sebagai string JSON)
         $request->validate([
-            'title' => 'required|string',
-            'image' => 'required|image|max:2048',
+            'title' => 'nullable|string',
+            'image' => 'required|image|max:10240',
             'items' => 'required|json',
         ]);
 

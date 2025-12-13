@@ -33,7 +33,7 @@ return new class extends Migration {
         // 3. Lookbooks (Galeri Gaya)
         Schema::create('lookbooks', function (Blueprint $table) {
             $table->id();
-            $table->string('title');
+            $table->string('title')->nullable();
             $table->string('image_url');
             $table->timestamps();
         });

@@ -12,11 +12,11 @@ return new class extends Migration
             $table->id();
             // Kita cuma butuh 1 baris data, jadi nanti kita update ID 1 terus.
             $table->string('background_image')->nullable(); // Foto Background
-            $table->string('subtitle')->default('EST. 2025 • INDONESIA'); // Teks kecil atas
-            $table->string('title')->default('REDEFINE YOUR STREETWEAR.'); // Judul Besar
+            $table->string('subtitle')->nullable();
+            $table->string('title')->nullable(); // Judul Besar
             $table->text('description')->nullable(); // Deskripsi di bawah judul
-            $table->string('button_text')->default('SHOP COLLECTION'); // Teks Tombol
-            $table->string('button_link')->default('/shop'); // Link Tombol
+            $table->string('button_text')->nullable(); // Teks Tombol
+            $table->string('button_link')->nullable();// Link Tombol
             $table->timestamps();
         });
     }
