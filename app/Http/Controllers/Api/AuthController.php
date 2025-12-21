@@ -97,7 +97,7 @@ class AuthController extends Controller
             $user->update(['uid' => (string) Str::uuid()]);
         }
 
-        $user->tokens()->delete();
+        // $user->tokens()->delete();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -147,7 +147,7 @@ class AuthController extends Controller
             }
         }
 
-        $user->tokens()->delete();
+        // $user->tokens()->delete();
         $token = $user->createToken('google-auth')->plainTextToken;
 
         return response()->json([
