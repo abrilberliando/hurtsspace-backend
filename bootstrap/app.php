@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
 
+        $middleware->trustProxies(at: '*');
         // Middleware Group Default
         $middleware->api(array_merge([
             SecurityHeaders::class,
