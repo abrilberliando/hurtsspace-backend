@@ -9,7 +9,8 @@ return [
     'allowed_origins' => [
         'https://hurtsspace.com',
         'https://www.hurtsspace.com',
-        'http://localhost:3000',
+        'https://*.hurtsspace.com',
+        // 'http://localhost:3000',
     ],
 
     'allowed_origins_patterns' => [],
