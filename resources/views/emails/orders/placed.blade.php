@@ -63,7 +63,7 @@
                 </p>
             @endif
 
-            <!-- ORDER DETAILS (Sama buat kedua status) -->
+            <!-- ORDER DETAILS -->
             <table class="table">
                 <thead>
                     <tr>
@@ -76,16 +76,25 @@
                     @foreach($order->items as $item)
                     <tr>
                         <td>
-                            <div style="font-weight: bold;">{{ $item->product_name }}</div>
-                            <div style="font-size: 12px; color: #52525b;">Size: {{ $item->variant_name }}</div>
+                            <div style="font-weight: bold;">
+                                {{-- LOGIC PINTAR: Cek Snapshot dulu, kalau kosong/0 ambil dari Relasi Produk --}}
+                                {{ ($item->product_name && $item->product_name !== '0') ? $item->product_name : ($item->product->name ?? 'Produk Tidak Tersedia') }}
+                            </div>
+                            <div style="font-size: 12px; color: #52525b;">
+                                {{-- LOGIC PINTAR: Cek Snapshot Size, kalau kosong/0 ambil dari Relasi Variant --}}
+                                Size: {{ ($item->variant_name && $item->variant_name !== '0') ? $item->variant_name : ($item->variant->size ?? '-') }}
+                            </div>
                         </td>
                         <td>{{ $item->quantity }}</td>
-                        <td style="text-align: right;">Rp {{ number_format($item->subtotal, 0, ',', '.') }}</td>
+                        <td style="text-align: right;">
+                            {{-- LOGIC PINTAR: Kalau subtotal 0, hitung manual Harga x Qty --}}
+                            Rp {{ number_format(($item->subtotal > 0 ? $item->subtotal : ($item->price * $item->quantity)), 0, ',', '.') }}
+                        </td>
                     </tr>
                     @endforeach
 
                     <tr>
-                        <td colspan="2" style="padding-top: 10px; color: #a1a1aa;">Shipping ({{ strtoupper($order->shipping_courier) }})</td>
+                        <td colspan="2" style="padding-top: 10px; color: #a1a1aa;">Shipping ({{ strtoupper($order->shipping_courier ?? 'KURIR') }})</td>
                         <td style="text-align: right; padding-top: 10px;">Rp {{ number_format($order->shipping_cost, 0, ',', '.') }}</td>
                     </tr>
                     <tr class="total-row">
