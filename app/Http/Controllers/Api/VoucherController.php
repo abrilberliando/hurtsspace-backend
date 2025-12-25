@@ -9,7 +9,34 @@ use Carbon\Carbon;
 
 class VoucherController extends Controller
 {
-    // Cek Validitas Voucher
+    // 👇 1. LIST VOUCHER AKTIF (Method Baru)
+    public function index()
+    {
+        $now = Carbon::now();
+
+        // Ambil voucher yang:
+        // 1. Stok masih ada (> 0)
+        // 2. Tanggal mulai sudah lewat atau null
+        // 3. Tanggal berakhir belum lewat atau null
+        $vouchers = Voucher::where('stock', '>', 0)
+            ->where(function ($query) use ($now) {
+                $query->whereNull('start_date')
+                      ->orWhere('start_date', '<=', $now);
+            })
+            ->where(function ($query) use ($now) {
+                $query->whereNull('end_date')
+                      ->orWhere('end_date', '>=', $now);
+            })
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'message' => 'Available vouchers retrieved',
+            'data' => $vouchers
+        ]);
+    }
+
+    // 2. CEK VALIDITAS VOUCHER (Tetap Sama)
     public function check(Request $request)
     {
         $request->validate(['code' => 'required|string']);
