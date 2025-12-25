@@ -106,6 +106,7 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
         Route::get('/wishlist/check/{productId}', [WishlistController::class, 'check']);
 
         // Voucher
+        Route::get('/vouchers', [VoucherController::class, 'index']); // 👈 Tambahin ini
         Route::post('/vouchers/check', [VoucherController::class, 'check']);
     });
 
