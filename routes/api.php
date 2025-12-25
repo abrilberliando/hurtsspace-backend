@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\VideoBannerController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
@@ -60,9 +61,10 @@ Route::get('/products/{slug}', [ProductController::class, 'show']); // Wildcard 
 
 Route::get('/categories', [CategoryController::class, 'index']);
 
-// Banner & Hero
+// Banner & Hero & Video
 Route::get('/banner/active', [BannerController::class, 'getActive']);
 Route::get('/hero-section', [HeroSectionController::class, 'show']);
+Route::get('/video-banner/active', [VideoBannerController::class, 'getActive']);
 
 // Lookbook
 Route::get('/lookbooks', [LookbookController::class, 'index']);
@@ -125,6 +127,9 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
         // BANNERS (MENGGUNAKAN API RESOURCE EFEKTIF)
         // Rute untuk GET Index & Show disatukan di sini (Admin/Member/Guest tidak perlu rute show Banner)
         Route::apiResource('banners', BannerController::class)->except(['show', 'update']);
+        // Video
+        Route::apiResource('video-banners', VideoBannerController::class)->except(['show']);
+        Route::put('/video-banners/{id}/toggle', [VideoBannerController::class, 'toggleActive']);
         // Tambahkan rute kustom
         Route::put('/banners/{id}/toggle', [BannerController::class, 'toggleActive']);
         // Ubah rute update (karena resource-nya dibuat 'banners')
