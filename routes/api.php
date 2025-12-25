@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\RunningTextController;
 use App\Http\Controllers\Api\VideoBannerController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -60,6 +61,8 @@ Route::get('/products/featured', [ProductController::class, 'getFeatured']); // 
 Route::get('/products/{slug}', [ProductController::class, 'show']); // Wildcard untuk detail produk
 
 Route::get('/categories', [CategoryController::class, 'index']);
+
+Route::get('/running-text/active', [RunningTextController::class, 'getActive']);
 
 // Banner & Hero & Video
 Route::get('/banner/active', [BannerController::class, 'getActive']);
@@ -134,6 +137,9 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
         Route::put('/banners/{id}/toggle', [BannerController::class, 'toggleActive']);
         // Ubah rute update (karena resource-nya dibuat 'banners')
         Route::put('/banners/{id}', [BannerController::class, 'update']);
+
+        Route::apiResource('running-texts', RunningTextController::class)->except(['show']);
+        Route::put('/running-texts/{id}/toggle', [RunningTextController::class, 'toggleActive']);
 
         // Categories (MANAGE KATEGORI) 👇
         Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
