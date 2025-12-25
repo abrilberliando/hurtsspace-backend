@@ -29,13 +29,26 @@ class ProductController extends Controller
     // 2. GET SINGLE PRODUCT
     public function show($key)
     {
-        // 👇 Gambar diambil DENGAN URUTAN sort_order (1, 2, 3...)
-        $product = Product::with(['images' => function ($query) {
+        // Cek apakah $key ini murni angka (ID) atau string (Slug)
+        // Kita asumsikan ID itu numeric.
+
+        $query = Product::with(['images' => function ($query) {
             $query->orderBy('sort_order', 'asc');
-        }, 'variants', 'category'])
-            ->where('id', $key)
-            ->orWhere('slug', $key)
-            ->firstOrFail();
+        }, 'variants', 'category']);
+
+        if (is_numeric($key)) {
+            // Kalau angka murni, cari by ID dulu.
+            // Kalau gak ketemu by ID, baru cari by Slug (siapa tau slugnya emang angka doang wkwk)
+            $product = $query->where('id', $key)->first();
+
+            if (!$product) {
+                $product = $query->where('slug', $key)->firstOrFail();
+            }
+        } else {
+            // Kalau string (ada huruf/strip), LANGSUNG cari by SLUG.
+            // Jangan cari by ID biar gak kena integer casting error.
+            $product = $query->where('slug', $key)->firstOrFail();
+        }
 
         return response()->json(['data' => $product]);
     }
