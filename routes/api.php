@@ -21,9 +21,11 @@ use App\Http\Controllers\Api\AdminOrderController;
 use App\Http\Controllers\Api\AdminLookbookController;
 use App\Http\Controllers\Api\AdminVoucherController;
 use App\Http\Controllers\Api\AdminDashboardController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Middleware\IsAdmin;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use App\Http\Middleware\EnsureHttpsAndHsts;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -108,6 +110,10 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
         // Voucher
         Route::get('/vouchers', [VoucherController::class, 'index']); // 👈 Tambahin ini
         Route::post('/vouchers/check', [VoucherController::class, 'check']);
+
+        // Notifications
+        Route::get('/notifications', [NotificationController::class, 'index']);
+        Route::put('/notifications/read', [NotificationController::class, 'markAsRead']);
     });
 
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -157,6 +163,9 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
         // Vouchers (MENGGUNAKAN API RESOURCE EFEKTIF)
         Route::apiResource('vouchers', AdminVoucherController::class)->except(['show', 'update']);
         Route::put('/vouchers/{id}', [AdminVoucherController::class, 'update']); // Tambah rute update
+
+        // Broadcast Notifikasi
+        Route::post('/broadcast', [NotificationController::class, 'sendBroadcast']);
     });
 
 });
