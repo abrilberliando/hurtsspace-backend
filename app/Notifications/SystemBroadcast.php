@@ -30,7 +30,7 @@ class SystemBroadcast extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $mail = (new MailMessage)
-                    ->subject('📢 Info Penting: ' . $this->title)
+                    ->subject('📢' . $this->title)
                     ->greeting('Halo ' . $notifiable->name . '!')
                     ->line($this->message);
 
