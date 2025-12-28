@@ -27,11 +27,11 @@ class OrderPaidToAdmin extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $url = env('FRONTEND_URL') . "/admin/orders/" . $this->order->id;
+        $url = env('FRONTEND_URL') . "/admin/orders/";
 
         return (new MailMessage)
                     ->subject('💰 Cuan Masuk! Order #' . $this->order->invoice_number . ' Lunas')
-                    ->greeting('Halo Admin G!')
+                    ->greeting('Halo Pak boss haze!')
                     ->line('Ada pesanan baru yang sudah lunas. Segera proses pengiriman.')
                     ->line('Total: Rp ' . number_format($this->order->total_price))
                     ->action('Lihat Order', $url);
