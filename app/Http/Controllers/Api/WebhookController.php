@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Order;
-use App\Models\ProductVariant; // Import buat restock
+use App\Models\ProductVariant;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-use App\Mail\OrderPaid;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification; // 👈 Wajib Import
+use App\Mail\OrderPaid;
+use App\Notifications\OrderPaidToAdmin; // 👈 Wajib Import Notifikasi Admin
 
 class WebhookController extends Controller
 {
@@ -21,11 +23,12 @@ class WebhookController extends Controller
         $serverKey = config('midtrans.server_key') ?? env('MIDTRANS_SERVER_KEY');
 
         // 2. Validasi Signature Key (SECURITY LAYER UTAMA)
-        // Rumus Midtrans: SHA512(order_id + status_code + gross_amount + ServerKey)
-        $hashed = hash("sha512", $request->order_id . $request->status_code . $request->gross_amount . $serverKey);
+        // Pastikan urutan string: order_id + status_code + gross_amount + ServerKey
+        $signatureString = $request->order_id . $request->status_code . $request->gross_amount . $serverKey;
+        $hashed = hash("sha512", $signatureString);
 
         if ($hashed !== $request->signature_key) {
-            Log::error('Invalid Signature Key: Potential Attack Detected');
+            Log::error("Invalid Signature Key! Expect: $hashed vs Got: {$request->signature_key}");
             return response()->json(['message' => 'Invalid Signature'], 403);
         }
 
@@ -74,16 +77,15 @@ class WebhookController extends Controller
         }
     }
 
-    // Helper: Tandai Lunas, Kirim Email, & Tambah Poin
+    // Helper: Tandai Lunas, Kirim Email User & Admin, Tambah Poin
     private function markAsPaid($order)
     {
         $order->update(['status' => 'paid']);
 
-        // A. LOGIC POIN MEMBER 💎 (DARI KODE LAMA LO)
-        // Cek apakah user-nya Member (bukan Admin)
+        // A. LOGIC POIN MEMBER 💎
         $user = $order->user;
         if ($user && $user->role === 'member') {
-            // Rumus: Total Belanja dibagi 10.000 (Contoh: 150.000 -> 15 Poin)
+            // Rumus: Total Belanja dibagi 10.000
             $pointsEarned = floor($order->total_price / 10000);
 
             if ($pointsEarned > 0) {
@@ -92,11 +94,23 @@ class WebhookController extends Controller
             }
         }
 
-        // B. KIRIM EMAIL KONFIRMASI PEMBAYARAN
+        // B. KIRIM EMAIL KONFIRMASI KE USER
         try {
             Mail::to($order->user->email)->send(new OrderPaid($order));
         } catch (\Exception $e) {
-            Log::error('Gagal kirim email paid: ' . $e->getMessage());
+            Log::error('Gagal kirim email user paid: ' . $e->getMessage());
+        }
+
+        // C. KIRIM NOTIFIKASI KE ADMIN (Email + Database)
+        try {
+            $adminEmail = env('ADMIN_NOTIFY_EMAIL'); // Pastikan ini ada di .env
+            if ($adminEmail) {
+                Notification::route('mail', $adminEmail)
+                    ->notify(new OrderPaidToAdmin($order));
+                Log::info("Notif admin dikirim ke: $adminEmail");
+            }
+        } catch (\Exception $e) {
+            Log::error('Gagal kirim notif admin: ' . $e->getMessage());
         }
     }
 
