@@ -10,7 +10,7 @@ return [
         'https://hurtsspace.com',
         'https://www.hurtsspace.com',
         'https://*.hurtsspace.com',
-        'http://localhost:3000',
+        // 'http://localhost:3000',
     ],
 
     'allowed_origins_patterns' => [],
