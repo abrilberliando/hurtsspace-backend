@@ -8,7 +8,7 @@ class Order extends Model
 {
     protected $fillable = [
         'user_id', 'invoice_number', 'total_price', 'status', 'snap_token',
-        'shipping_cost', 'shipping_courier', 'shipping_service', 'shipping_resi', 'shipping_address'
+        'shipping_cost', 'shipping_courier', 'shipping_service', 'shipping_resi', 'shipping_address', 'note'
     ];
 
     public function user()

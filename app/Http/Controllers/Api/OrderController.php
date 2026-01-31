@@ -32,6 +32,7 @@ class OrderController extends Controller
             'shipping_service' => 'nullable|string',
             'shipping_address' => 'required|string', // Pastikan key ini match sama FE
             'voucher_code' => 'nullable|string',
+            'note' => 'nullable|string|max:500',
         ]);
 
         DB::beginTransaction();
@@ -112,6 +113,7 @@ class OrderController extends Controller
                 'shipping_cost' => $shippingCost,
                 'shipping_courier' => $request->shipping_courier,
                 'shipping_service' => $request->shipping_service,
+                'note' => $request->note,
                 // 'voucher_code' => $request->voucher_code,
             ]);
 
@@ -137,6 +139,7 @@ class OrderController extends Controller
                     'email' => $user->email,
                     'phone' => $user->phone,
                 ],
+                'custom_field1' => $request->note,
             ];
 
             // Dapet Snap Token
