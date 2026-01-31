@@ -43,7 +43,7 @@ class BiteshipService
             ->post($this->baseUrl . '/rates/couriers', [
                 'origin_area_id' => $originAreaId,
                 'destination_area_id' => $destinationAreaId,
-                'couriers' => 'jne,jnt,sicepat,anteraja', // Kurir yang mau lo pake
+                'couriers' => 'jne,jnt,gosend', // Kurir yang mau lo pake
                 'items' => [
                     [
                         'name' => 'Paket Hurtsspace',
