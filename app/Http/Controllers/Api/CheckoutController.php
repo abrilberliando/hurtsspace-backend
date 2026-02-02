@@ -16,7 +16,6 @@ class CheckoutController extends Controller
 {
     public function checkout(Request $request)
     {
-        // 1. Validasi Input (Tambahin note di sini G!)
         $request->validate([
             'items' => 'required|array',
             'items.*.variant_id' => 'required|exists:product_variants,id',
@@ -26,10 +25,9 @@ class CheckoutController extends Controller
             'shipping_courier' => 'required|string',
             'shipping_address' => 'required|string',
             'voucher_code' => 'nullable|string|exists:vouchers,code',
-            'note' => 'nullable|string|max:500', // 👈 WAJIB ADA INI
+            'note' => 'nullable|string|max:500',
         ]);
 
-        // Setup Midtrans
         Config::$serverKey = env('MIDTRANS_SERVER_KEY');
         Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
         Config::$isSanitized = true;
@@ -43,16 +41,12 @@ class CheckoutController extends Controller
             $orderItems = [];
             $midtransItemDetails = [];
 
-            // 2. Loop Barang
+            // 1. Loop Barang & Hitung Subtotal Normal
             foreach ($request->items as $item) {
                 $variant = ProductVariant::with('product')->lockForUpdate()->find($item['variant_id']);
 
-                if (!$variant) {
-                    throw new \Exception("Varian produk tidak ditemukan.");
-                }
-
-                if ($variant->stock < $item['quantity']) {
-                    throw new \Exception("Stok {$variant->product->name} habis, G!");
+                if (!$variant || $variant->stock < $item['quantity']) {
+                    throw new \Exception("Stok {$variant->product->name} bermasalah, G!");
                 }
 
                 $price = (int) $variant->product->price;
@@ -76,20 +70,51 @@ class CheckoutController extends Controller
                 $variant->decrement('stock', $item['quantity']);
             }
 
-            // 3. Logic Voucher
+            // 2. Logic Voucher Multi-Target (ONGKIR vs PRODUCT)
             $discountAmount = 0;
             if ($request->voucher_code) {
-                $voucher = Voucher::where('code', $request->voucher_code)->first();
+                // Tarik data voucher beserta produk yang dapet izin diskon
+                $voucher = Voucher::with('products')->where('code', $request->voucher_code)->first();
+
                 if ($voucher && $voucher->stock > 0) {
+                    $eligibleAmount = 0;
+
+                    if ($voucher->target === 'shipping') {
+                        // 👇 TARGET ONGKIR
+                        $eligibleAmount = $request->shipping_cost;
+                    } else {
+                        // 👇 TARGET PRODUCTS
+                        if ($voucher->is_all_products) {
+                            $eligibleAmount = $totalPrice;
+                        } else {
+                            // Cek barang mana aja yang boleh didiskon
+                            $allowedIds = $voucher->products->pluck('id')->toArray();
+                            foreach ($orderItems as $oi) {
+                                if (in_array($oi['product_id'], $allowedIds)) {
+                                    $eligibleAmount += ($oi['price'] * $oi['quantity']);
+                                }
+                            }
+                        }
+                    }
+
+                    // Hitung Potongan
                     if ($voucher->discount_type == 'percent') {
-                        $discountAmount = ($totalPrice * $voucher->discount_amount) / 100;
+                        $discountAmount = ($eligibleAmount * $voucher->discount_amount) / 100;
+                        // Cek cap maksimal diskon
+                        if ($voucher->max_discount_amount && $discountAmount > $voucher->max_discount_amount) {
+                            $discountAmount = $voucher->max_discount_amount;
+                        }
                     } else {
                         $discountAmount = $voucher->discount_amount;
                     }
+
+                    // Diskon gak boleh lebih gede dari harga aslinya G!
+                    $discountAmount = min($discountAmount, $eligibleAmount);
                     $voucher->decrement('stock');
                 }
             }
 
+            // 3. Tambahan Item Details buat Midtrans
             if ($request->shipping_cost > 0) {
                 $midtransItemDetails[] = [
                     'id' => 'SHIPPING',
@@ -108,10 +133,10 @@ class CheckoutController extends Controller
                 ];
             }
 
+            // 4. Hitung Grand Total & Save Order
             $grandTotal = ($totalPrice + $request->shipping_cost) - $discountAmount;
             if ($grandTotal < 10000) $grandTotal = 10000;
 
-            // 4. Buat Order Utama (MASUKIN NOTE DI SINI!)
             $invoice = 'INV-' . time() . '-' . $user->id;
 
             $order = Order::create([
@@ -123,21 +148,14 @@ class CheckoutController extends Controller
                 'shipping_courier' => $request->shipping_courier,
                 'shipping_service' => $request->shipping_service,
                 'shipping_address' => $request->shipping_address,
-                'note' => $request->note, // 👈 INI YANG BIKIN KESIMPEN KE DB, G!
+                'note' => $request->note,
             ]);
 
-            // 5. Simpan Detail Barang
             foreach ($orderItems as $dataItem) {
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $dataItem['product_id'],
-                    'product_variant_id' => $dataItem['product_variant_id'],
-                    'quantity' => $dataItem['quantity'],
-                    'price' => $dataItem['price'],
-                ]);
+                $order->items()->create($dataItem);
             }
 
-            // 6. Request Midtrans
+            // 5. Midtrans Snap Token
             $midtransParams = [
                 'transaction_details' => [
                     'order_id' => $invoice,
@@ -149,7 +167,7 @@ class CheckoutController extends Controller
                     'phone' => $user->phone ?? '08123456789',
                 ],
                 'item_details' => $midtransItemDetails,
-                'custom_field1' => $request->note, // Optional: Biar muncul juga di dashboard Midtrans
+                'custom_field1' => $request->note,
             ];
 
             $snapToken = Snap::getSnapToken($midtransParams);

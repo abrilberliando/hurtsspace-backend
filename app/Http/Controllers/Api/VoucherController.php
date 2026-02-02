@@ -9,16 +9,13 @@ use Carbon\Carbon;
 
 class VoucherController extends Controller
 {
-    // 👇 1. LIST VOUCHER AKTIF (Method Baru)
+    // 👇 1. LIST VOUCHER AKTIF
     public function index()
     {
         $now = Carbon::now();
 
-        // Ambil voucher yang:
-        // 1. Stok masih ada (> 0)
-        // 2. Tanggal mulai sudah lewat atau null
-        // 3. Tanggal berakhir belum lewat atau null
-        $vouchers = Voucher::where('stock', '>', 0)
+        $vouchers = Voucher::with('products:id,name') // 👈 Eager load biar tau produk mana aja yang dapet diskon
+            ->where('stock', '>', 0)
             ->where(function ($query) use ($now) {
                 $query->whereNull('start_date')
                       ->orWhere('start_date', '<=', $now);
@@ -36,23 +33,23 @@ class VoucherController extends Controller
         ]);
     }
 
-    // 2. CEK VALIDITAS VOUCHER (Tetap Sama)
+    // 👇 2. CEK VALIDITAS VOUCHER
     public function check(Request $request)
     {
         $request->validate(['code' => 'required|string']);
 
-        $voucher = Voucher::where('code', $request->code)->first();
+        // Load relasi produk buat jaga-jaga kalau vouchernya cuma buat barang tertentu
+        $voucher = Voucher::with('products:id,name')->where('code', $request->code)->first();
 
         if (!$voucher) {
             return response()->json(['message' => 'Kode voucher tidak ditemukan.'], 404);
         }
 
-        // Cek Kuota
+        // --- VALIDASI STANDAR ---
         if ($voucher->stock <= 0) {
             return response()->json(['message' => 'Yah, voucher ini udah habis G.'], 400);
         }
 
-        // Cek Tanggal
         $now = Carbon::now();
         if ($voucher->start_date && $now->lt($voucher->start_date)) {
             return response()->json(['message' => 'Voucher belum dimulai.'], 400);
@@ -61,9 +58,20 @@ class VoucherController extends Controller
             return response()->json(['message' => 'Voucher udah kadaluarsa.'], 400);
         }
 
+        // --- TAMBAHAN INFO INFO ---
+        // Kita kirim info target-nya ke frontend biar Next.js lo bisa ngitung
         return response()->json([
             'message' => 'Voucher valid!',
-            'data' => $voucher
+            'data' => [
+                'id' => $voucher->id,
+                'code' => $voucher->code,
+                'discount_amount' => (int) $voucher->discount_amount,
+                'discount_type' => $voucher->discount_type,
+                'max_discount_amount' => (int) $voucher->max_discount_amount,
+                'target' => $voucher->target, // 'products' atau 'shipping'
+                'is_all_products' => $voucher->is_all_products,
+                'applicable_products' => $voucher->products, // List produk kalau is_all_products false
+            ]
         ]);
     }
 }
