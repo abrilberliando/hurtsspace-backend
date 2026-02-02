@@ -124,6 +124,7 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
     Route::middleware([IsAdmin::class, ThrottleRequests::class . ':auth_protected'])->prefix('admin')->group(function () {
         // Dashboard
         Route::get('/dashboard', [AdminDashboardController::class, 'index']);
+        Route::get('products', [ProductController::class, 'index']);
 
         // Hero Management (FIXED: Karena Hero Section cuma 1 row)
         Route::post('/hero-section', [HeroSectionController::class, 'update']); // Menggunakan PUT untuk update
@@ -163,6 +164,8 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
         // Vouchers (MENGGUNAKAN API RESOURCE EFEKTIF)
         Route::apiResource('vouchers', AdminVoucherController::class)->except(['show', 'update']);
         Route::put('/vouchers/{id}', [AdminVoucherController::class, 'update']); // Tambah rute update
+        Route::get('vouchers/{id}', [AdminVoucherController::class, 'show']);
+        Route::post('vouchers/{id}/sync', [AdminVoucherController::class, 'syncProducts']);
 
         // Broadcast Notifikasi
         Route::post('/broadcast', [NotificationController::class, 'sendBroadcast']);
