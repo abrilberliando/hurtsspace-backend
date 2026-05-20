@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\AdminLinktreeController;
+use App\Http\Controllers\Api\LinktreeController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\RunningTextController;
 use App\Http\Controllers\Api\VideoBannerController;
@@ -74,6 +76,10 @@ Route::get('/video-banner/active', [VideoBannerController::class, 'getActive']);
 // Lookbook
 Route::get('/lookbooks', [LookbookController::class, 'index']);
 Route::get('/lookbooks/{id}', [LookbookController::class, 'show']);
+
+// Linktree
+Route::get('/linktree', [LinktreeController::class, 'index']);
+
 
 
 
@@ -169,6 +175,15 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
 
         // Broadcast Notifikasi
         Route::post('/broadcast', [NotificationController::class, 'sendBroadcast']);
+
+        // Linktree Management
+        Route::get('/linktree', [AdminLinktreeController::class, 'getSettings']);
+        Route::post('/linktree/settings', [AdminLinktreeController::class, 'updateSettings']); // POST for FormData (file upload)
+        Route::post('/linktree/links', [AdminLinktreeController::class, 'storeLink']);
+        Route::post('/linktree/links/{id}', [AdminLinktreeController::class, 'updateLink']); // POST for FormData (file upload)
+        Route::delete('/linktree/links/{id}', [AdminLinktreeController::class, 'destroyLink']);
+        Route::put('/linktree/links/{id}/toggle', [AdminLinktreeController::class, 'toggleLinkActive']);
+        Route::put('/linktree/links/reorder', [AdminLinktreeController::class, 'reorderLinks']);
     });
 
 });
