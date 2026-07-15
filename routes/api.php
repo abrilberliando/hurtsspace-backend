@@ -193,6 +193,7 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
         
         // Backups
         Route::apiResource('backups', \App\Http\Controllers\Api\AdminBackupController::class)->only(['index', 'store', 'destroy']);
+        Route::post('backups/{id}/restore', [\App\Http\Controllers\Api\AdminBackupController::class, 'restore']);
     });
 
 });
