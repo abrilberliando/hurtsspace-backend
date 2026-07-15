@@ -130,6 +130,11 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
     Route::middleware([IsAdmin::class, ThrottleRequests::class . ':auth_protected'])->prefix('admin')->group(function () {
         // Dashboard
         Route::get('/dashboard', [AdminDashboardController::class, 'index']);
+        
+        // Users Management
+        Route::apiResource('users', \App\Http\Controllers\Api\AdminUserController::class)->except(['store']);
+        Route::post('/users/{id}/restore', [\App\Http\Controllers\Api\AdminUserController::class, 'restore']);
+
         Route::get('products', [ProductController::class, 'index']);
 
         // Hero Management (FIXED: Karena Hero Section cuma 1 row)
