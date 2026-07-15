@@ -76,7 +76,7 @@ class BannerController extends Controller
             $urlLeft = $processImage($request->file('image_left'));
             $urlRight = $processImage($request->file('image_right'));
 
-            // Simpan ke DB
+            // Save to DB
             $banner = Banner::create([
                 'title' => $request->title,
                 'position' => $request->position,
@@ -95,7 +95,7 @@ class BannerController extends Controller
             foreach ($uploadedCloudinaryIds as $publicId) {
                 try { cloudinary()->uploadApi()->destroy($publicId); } catch (\Exception $ex) {}
             }
-            return response()->json(['message' => 'Gagal upload banner: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to upload banner: ' . $e->getMessage()], 500);
         }
     }
 
@@ -116,7 +116,7 @@ class BannerController extends Controller
         try {
             // Helper function update image
             $updateImage = function($file, $oldUrl) use (&$uploadedCloudinaryIds) {
-                // Hapus file lama
+                // Delete old file
                 if (Str::contains($oldUrl, url('storage'))) {
                     $oldPath = str_replace(url('storage') . '/', '', $oldUrl);
                     if (Storage::disk('public')->exists($oldPath)) {
@@ -172,18 +172,18 @@ class BannerController extends Controller
             foreach ($uploadedCloudinaryIds as $publicId) {
                 try { cloudinary()->uploadApi()->destroy($publicId); } catch (\Exception $ex) {}
             }
-            return response()->json(['message' => 'Gagal update banner: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to update banner: ' . $e->getMessage()], 500);
         }
     }
 
-    // 5. ADMIN: Hapus Banner (Bersih-bersih File)
+    // 5. ADMIN: Delete Banner (Clean up File)
     public function destroy($id)
     {
         $banner = Banner::findOrFail($id);
 
         DB::beginTransaction();
         try {
-            // Helper untuk hapus file fisik/cloud
+            // Helper to delete physical/cloud file
             $deleteImage = function($url) {
                 if (Str::contains($url, url('storage'))) {
                     $path = str_replace(url('storage') . '/', '', $url);
@@ -216,7 +216,7 @@ class BannerController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Gagal delete banner: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to delete banner: ' . $e->getMessage()], 500);
         }
     }
 

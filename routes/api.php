@@ -61,6 +61,7 @@ Route::middleware([EnsureHttpsAndHsts::class, 'throttle:auth_public'])->group(fu
 // --- PRODUK & KATEGORI (FIXED ORDER) ---
 // Rute spesifik/custom harus di atas rute wildcard ({slug})
 Route::get('/products', [ProductController::class, 'index']);
+Route::post('/products/validate-cart', [ProductController::class, 'validateCart']); // For frontend cart sync
 Route::get('/products/featured', [ProductController::class, 'getFeatured']); // 🔥 Ditaruh di atas rute {slug}
 Route::get('/products/{slug}', [ProductController::class, 'show']); // Wildcard untuk detail produk
 
@@ -154,7 +155,7 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
         Route::put('/video-banners/{id}/toggle', [VideoBannerController::class, 'toggleActive']);
         // Tambahkan rute kustom
         Route::put('/banners/{id}/toggle', [BannerController::class, 'toggleActive']);
-        // Ubah rute update (karena resource-nya dibuat 'banners')
+        // Change update route (because resource is 'banners')
         Route::put('/banners/{id}', [BannerController::class, 'update']);
 
         Route::apiResource('running-texts', RunningTextController::class)->except(['show']);
@@ -165,16 +166,16 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
 
         // Orders
         Route::get('/orders', [AdminOrderController::class, 'index']);
-        Route::get('/orders/{id}', [AdminOrderController::class, 'show']); // Tambah rute show
+        Route::get('/orders/{id}', [AdminOrderController::class, 'show']); // Add show route
         Route::put('/orders/{id}', [AdminOrderController::class, 'updateStatus']);
 
         // Lookbooks (MENGGUNAKAN API RESOURCE EFEKTIF)
         Route::apiResource('lookbooks', AdminLookbookController::class)->except(['show', 'update']);
-        Route::put('/lookbooks/{id}', [AdminLookbookController::class, 'update']); // Tambah rute update
+        Route::put('/lookbooks/{id}', [AdminLookbookController::class, 'update']); // Add update route
 
         // Vouchers (MENGGUNAKAN API RESOURCE EFEKTIF)
         Route::apiResource('vouchers', AdminVoucherController::class)->except(['show', 'update']);
-        Route::put('/vouchers/{id}', [AdminVoucherController::class, 'update']); // Tambah rute update
+        Route::put('/vouchers/{id}', [AdminVoucherController::class, 'update']); // Add update route
         Route::get('vouchers/{id}', [AdminVoucherController::class, 'show']);
         Route::post('vouchers/{id}/sync', [AdminVoucherController::class, 'syncProducts']);
 

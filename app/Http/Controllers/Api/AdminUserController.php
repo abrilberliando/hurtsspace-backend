@@ -59,7 +59,7 @@ class AdminUserController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Role berhasil diupdate',
+            'message' => 'Role updated successfully',
             'data' => $user
         ]);
     }
@@ -78,7 +78,7 @@ class AdminUserController extends Controller
 
         $user->delete();
 
-        return response()->json(['message' => 'User berhasil di-suspend']);
+        return response()->json(['message' => 'User suspended successfully']);
     }
 
     /**
@@ -90,7 +90,7 @@ class AdminUserController extends Controller
         
         if ($user->trashed()) {
             $user->restore();
-            return response()->json(['message' => 'User berhasil dipulihkan (unsuspend)']);
+            return response()->json(['message' => 'User restored successfully']);
         }
 
         return response()->json(['message' => 'User tidak dalam status tersuspend'], 400);

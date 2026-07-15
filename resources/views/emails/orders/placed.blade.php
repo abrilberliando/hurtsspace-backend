@@ -51,7 +51,7 @@
                 </div>
                 <h2 style="margin-top: 0;">Thanks, {{ $order->user->name }}! 🔥</h2>
                 <p style="color: #a1a1aa; line-height: 1.5;">
-                    Pembayaran untuk Order <strong>#{{ $order->invoice_number }}</strong> udah kami terima. Barang lo lagi disiapin dan bakal segera meluncur!
+                    Payment for Order <strong>#{{ $order->invoice_number }}</strong> has been received. Your items are being prepared and will be shipped soon!
                 </p>
             @else
                 <div style="text-align: center; margin-bottom: 30px;">
@@ -59,7 +59,7 @@
                 </div>
                 <h2 style="margin-top: 0;">Hi, {{ $order->user->name }}!</h2>
                 <p style="color: #a1a1aa; line-height: 1.5;">
-                    Order lo <strong>#{{ $order->invoice_number }}</strong> udah masuk nih. Tapi belum lunas ya, G. Selesaikan pembayaran biar barangnya gak diambil orang lain.
+                    Your order <strong>#{{ $order->invoice_number }}</strong> has been placed. But it's not paid yet. Please complete the payment so your items are not taken by others.
                 </p>
             @endif
 
@@ -78,7 +78,7 @@
                         <td>
                             <div style="font-weight: bold;">
                                 {{-- LOGIC PINTAR: Cek Snapshot dulu, kalau kosong/0 ambil dari Relasi Produk --}}
-                                {{ ($item->product_name && $item->product_name !== '0') ? $item->product_name : ($item->product->name ?? 'Produk Tidak Tersedia') }}
+                                {{ ($item->product_name && $item->product_name !== '0') ? $item->product_name : ($item->product->name ?? 'Product Unavailable') }}
                             </div>
                             <div style="font-size: 12px; color: #52525b;">
                                 {{-- LOGIC PINTAR: Cek Snapshot Size, kalau kosong/0 ambil dari Relasi Variant --}}
@@ -107,11 +107,11 @@
             <!-- ACTION BUTTON -->
             <div style="text-align: center; margin-top: 40px;">
                 @if(isset($is_paid) && $is_paid)
-                    <p style="margin-bottom: 20px; font-size: 12px; color: #a1a1aa;">Pantau status pengiriman di sini:</p>
-                    <a href="{{ $order->redirect_url ?? 'https://hurtsspace.com/dashboard/orders' }}" class="btn btn-check">CEK STATUS ORDER</a>
+                    <p style="margin-bottom: 20px; font-size: 12px; color: #a1a1aa;">Track your shipping status here:</p>
+                    <a href="{{ $order->redirect_url ?? 'https://hurtsspace.com/dashboard/orders' }}" class="btn btn-check">CHECK ORDER STATUS</a>
                 @else
-                    <p style="margin-bottom: 20px; font-size: 12px; color: #a1a1aa;">Klik tombol di bawah untuk lanjut bayar:</p>
-                    <a href="{{ $order->redirect_url ?? 'https://hurtsspace.com/dashboard/orders' }}" class="btn btn-pay">BAYAR SEKARANG</a>
+                    <p style="margin-bottom: 20px; font-size: 12px; color: #a1a1aa;">Click the button below to proceed with payment:</p>
+                    <a href="{{ $order->redirect_url ?? 'https://hurtsspace.com/dashboard/orders' }}" class="btn btn-pay">PAY NOW</a>
                 @endif
             </div>
         </div>

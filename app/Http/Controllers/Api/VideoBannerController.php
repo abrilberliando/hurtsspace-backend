@@ -53,7 +53,7 @@ class VideoBannerController extends Controller
             $video = VideoBanner::create([
                 'title' => $request->title,
                 'description' => $request->description, // Opsional di migration
-                'video_url' => $videoUrl, // Simpan URL lengkap dari Cloudinary
+                'video_url' => $videoUrl, // Save full URL from Cloudinary
                 'link_url' => $request->link_url,
                 'is_active' => true // Default langsung aktif
             ]);
@@ -66,8 +66,8 @@ class VideoBannerController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            // Hapus file kalau DB gagal, biar gak jadi file hantu
-            // Note: Pada tahap ini jika Cloudinary sudah upload, idealnya dihapus
+            // Delete file if DB fails, to prevent ghost files
+            // Note: At this stage if Cloudinary already uploaded, ideally delete it
             if (isset($videoUrl) && Str::contains($videoUrl, 'res.cloudinary.com')) {
                 try {
                     $parts = explode('/upload/', $videoUrl);
@@ -81,7 +81,7 @@ class VideoBannerController extends Controller
                 } catch (\Exception $deleteEx) {}
             }
 
-            return response()->json(['message' => 'Gagal upload: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to upload: ' . $e->getMessage()], 500);
         }
     }
 
@@ -93,7 +93,7 @@ class VideoBannerController extends Controller
         DB::beginTransaction();
         try {
             if ($request->hasFile('video')) {
-                // 1. Hapus Video Lama (Biar hemat storage)
+                // 1. Delete Old Video (To save storage)
                 if (Str::contains($videoBanner->video_url, url('storage'))) {
                     $oldPath = str_replace(url('storage') . '/', '', $videoBanner->video_url);
                     if (Storage::disk('public')->exists($oldPath)) {
@@ -132,7 +132,7 @@ class VideoBannerController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Gagal update: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to update: ' . $e->getMessage()], 500);
         }
     }
 

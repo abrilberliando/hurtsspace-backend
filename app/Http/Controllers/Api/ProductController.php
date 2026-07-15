@@ -68,7 +68,7 @@ class ProductController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['message' => 'Validasi gagal.', 'errors' => $validator->errors()], 422);
+            return response()->json(['message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
         }
 
         DB::beginTransaction();
@@ -86,7 +86,7 @@ class ProductController extends Controller
                 'is_featured' => false,
             ]);
 
-            // 👇 Simpan dengan sort_order saat create
+            // 👇 Save with sort_order during create
             $uploadedCloudinaryIds = [];
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $index => $image) {
@@ -110,7 +110,7 @@ class ProductController extends Controller
             }
 
             DB::commit();
-            return response()->json(['message' => 'Produk berhasil dibuat!', 'data' => $product], 201);
+            return response()->json(['message' => 'Product created successfully!', 'data' => $product], 201);
         } catch (\Exception $e) {
             DB::rollBack();
             if (isset($uploadedCloudinaryIds)) {
@@ -141,7 +141,7 @@ class ProductController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['message' => 'Data tidak valid.', 'errors' => $validator->errors()], 422);
+            return response()->json(['message' => 'Invalid data.', 'errors' => $validator->errors()], 422);
         }
 
         DB::beginTransaction();
@@ -177,7 +177,7 @@ class ProductController extends Controller
                 }
             }
 
-            // 2. Hapus Foto di DB yang DIBUANG user
+            // 2. Delete Photos in DB that are REMOVED by user
             $imagesToDelete = $product->images()->whereNotIn('image_url', $existingUrlsToKeep)->get();
             foreach ($imagesToDelete as $img) {
                 if (Str::contains($img->image_url, url('storage'))) {
@@ -261,7 +261,7 @@ class ProductController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Produk berhasil diupdate!',
+                'message' => 'Product updated successfully!',
                 'data' => $product->refresh()->load(['images' => function ($q) {
                     $q->orderBy('sort_order', 'asc'); // Return urut
                 }, 'variants'])
@@ -274,7 +274,7 @@ class ProductController extends Controller
                 }
             }
             Log::error("Update Product Error: " . $e->getMessage());
-            return response()->json(['message' => 'Gagal update produk, server error.'], 500);
+            return response()->json(['message' => 'Failed to update product, server error.'], 500);
         }
     }
 
@@ -307,10 +307,10 @@ class ProductController extends Controller
             });
             $product->delete();
             DB::commit();
-            return response()->json(['message' => 'Produk berhasil dihapus!'], 200);
+            return response()->json(['message' => 'Product deleted successfully!'], 200);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Gagal menghapus produk: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to delete product: ' . $e->getMessage()], 500);
         }
     }
 
@@ -337,16 +337,64 @@ class ProductController extends Controller
             $count = Product::where('is_featured', true)->count();
             if ($count >= 15) {
                 return response()->json([
-                    'message' => 'Slot Featured Penuh (Max 15), G! Hapus satu dulu biar bisa masuk.'
+                    'message' => 'Maximum of 15 featured products allowed!'
                 ], 422);
             }
             $product->update(['is_featured' => true]);
-            $msg = 'Produk berhasil jadi Featured!';
+            $msg = 'Product featured successfully!';
         } else {
             $product->update(['is_featured' => false]);
-            $msg = 'Produk dihapus dari Featured.';
+            $msg = 'Product removed from Featured.';
         }
 
         return response()->json(['message' => $msg, 'data' => $product]);
+    }
+
+    // 8. VALIDATE CART (SYNC)
+    public function validateCart(Request $request)
+    {
+        $ids = $request->input('ids', []);
+        $results = [];
+
+        foreach ($ids as $cartId) {
+            $parts = explode('-', $cartId);
+            if (count($parts) != 2) continue;
+
+            $productId = $parts[0];
+            $variantId = $parts[1];
+
+            $product = Product::with('variants')->find($productId);
+
+            if (!$product) {
+                $results[] = [
+                    'id' => $cartId,
+                    'price' => 0,
+                    'stock' => 0,
+                    'isAvailable' => false,
+                ];
+                continue;
+            }
+
+            $variant = $product->variants->where('id', $variantId)->first();
+
+            if (!$variant) {
+                $results[] = [
+                    'id' => $cartId,
+                    'price' => $product->price,
+                    'stock' => 0,
+                    'isAvailable' => false,
+                ];
+                continue;
+            }
+
+            $results[] = [
+                'id' => $cartId,
+                'price' => (float)$product->price,
+                'stock' => (int)$variant->stock,
+                'isAvailable' => true,
+            ];
+        }
+
+        return response()->json($results);
     }
 }

@@ -46,7 +46,7 @@ class CheckoutController extends Controller
                 $variant = ProductVariant::with('product')->lockForUpdate()->find($item['variant_id']);
 
                 if (!$variant || $variant->stock < $item['quantity']) {
-                    throw new \Exception("Stok {$variant->product->name} bermasalah, G!");
+                    throw new \Exception("Stock for {$variant->product->name} is unavailable!");
                 }
 
                 $price = (int) $variant->product->price;
@@ -176,7 +176,7 @@ class CheckoutController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Order berhasil dibuat!',
+                'message' => 'Order created successfully!',
                 'snap_token' => $snapToken,
                 'redirect_url' => "https://app.sandbox.midtrans.com/snap/v2/vtweb/" . $snapToken
             ], 201);

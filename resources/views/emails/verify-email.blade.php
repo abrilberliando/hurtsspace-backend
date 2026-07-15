@@ -47,12 +47,12 @@
 
                             <!-- Greeting -->
                             <h2 style="font-size: 17px; font-weight: 600; margin: 0 0 12px 0; color: #1a1a1a; letter-spacing: 0.3px;">
-                                Halo, {{ $name }} 👋
+                                Hello, {{ $name }} 👋
                             </h2>
 
                             <!-- Message -->
                             <p style="font-size: 14px; line-height: 1.7; margin: 0 0 30px 0; color: #525252;">
-                                Selamat datang di Hurtsspace Society. Untuk mengaktifkan akun dan mulai menjelajahi koleksi eksklusif kami, silakan verifikasi email Anda.
+                                Welcome to the Hurtsspace Society. To activate your account and start exploring our exclusive collection, please verify your email.
                             </p>
 
                             <!-- Button -->
@@ -60,7 +60,7 @@
                                 <tr>
                                     <td style="border-radius: 6px; background: linear-gradient(135deg, #000000 0%, #2d2d2d 100%); box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
                                         <a href="{{ $url }}" target="_blank" style="font-size: 13px; font-weight: 600; color: #ffffff; text-decoration: none; padding: 14px 36px; border-radius: 6px; display: inline-block; letter-spacing: 1px; text-transform: uppercase;">
-                                            Verifikasi Email
+                                            Verify Email
                                         </a>
                                     </td>
                                 </tr>
@@ -71,8 +71,8 @@
 
                             <!-- Note -->
                             <p style="font-size: 12px; color: #9ca3af; margin: 0; line-height: 1.6;">
-                                Link verifikasi berlaku selama 24 jam. Jika tombol tidak berfungsi,
-                                <a href="{{ $url }}" style="color: #000000; text-decoration: none; border-bottom: 1px solid #000000;">klik di sini</a>.
+                                The verification link is valid for 24 hours. If the button doesn't work,
+                                <a href="{{ $url }}" style="color: #000000; text-decoration: none; border-bottom: 1px solid #000000;">click here</a>.
                             </p>
 
                         </td>
@@ -102,7 +102,7 @@
 
                 <!-- Bottom Note -->
                 <p style="font-size: 11px; color: #a3a3a3; margin: 20px 0 0 0; text-align: center;">
-                    Email otomatis — mohon tidak membalas pesan ini
+                    Automated email — please do not reply to this message
                 </p>
 
             </td>

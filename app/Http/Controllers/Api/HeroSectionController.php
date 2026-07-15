@@ -89,7 +89,7 @@ class HeroSectionController extends Controller
                     $url = $uploadResult['secure_url'];
                     $newImageUrls[] = $url;
 
-                    // Hapus URL ini dari list yang akan dihapus, karena sudah diganti/diupload
+                    // Remove this URL from the list to be deleted, as it is replaced/uploaded
                     $imagesToDelete = array_diff($imagesToDelete, [$url]);
                 }
                 // 2. Cek kalau ada URL gambar lama yang dipertahankan
@@ -97,12 +97,12 @@ class HeroSectionController extends Controller
                     $url = $request->input("existing_image_{$i}");
                     $newImageUrls[] = $url;
 
-                    // Hapus URL ini dari list yang akan dihapus
+                    // Remove this URL from the list to be deleted
                     $imagesToDelete = array_diff($imagesToDelete, [$url]);
                 }
             }
 
-            // Hapus file lama yang tidak dipakai lagi (karena dihapus atau diganti)
+            // Delete old files that are no longer used (deleted or replaced)
             foreach ($imagesToDelete as $url) {
                 if (is_string($url)) { // Filter lagi agar lebih aman
                     if (Str::contains($url, url('storage/'))) {
@@ -131,10 +131,10 @@ class HeroSectionController extends Controller
             // Ambil data non-file yang diizinkan untuk update
             $dataToUpdate = $request->only(['subtitle', 'title', 'description', 'button_text', 'button_link']);
 
-            // Simpan array URL baru ke database
+            // Save new array of URLs to database
             $dataToUpdate['background_images'] = $newImageUrls;
 
-            // 👇 PERBAIKAN: Gunakan $dataToUpdate yang sudah bersih
+            // 👇 FIX: Use cleaned $dataToUpdate
             $hero->update($dataToUpdate);
 
             DB::commit();
@@ -144,7 +144,7 @@ class HeroSectionController extends Controller
             foreach ($uploadedCloudinaryIds as $publicId) {
                 try { cloudinary()->uploadApi()->destroy($publicId); } catch (\Exception $ex) {}
             }
-            return response()->json(['message' => 'Gagal update hero section: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to update hero section: ' . $e->getMessage()], 500);
         }
     }
 }

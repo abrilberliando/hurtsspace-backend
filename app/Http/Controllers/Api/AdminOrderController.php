@@ -50,6 +50,6 @@ class AdminOrderController extends Controller
             $order->update(['status' => $request->status]);
         }
 
-        return response()->json(['message' => 'Status order berhasil diupdate.', 'data' => $order]);
+        return response()->json(['message' => 'Order status updated successfully.', 'data' => $order]);
     }
 }

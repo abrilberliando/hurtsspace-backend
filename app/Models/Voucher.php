@@ -10,10 +10,10 @@ class Voucher extends Model
     protected $fillable = [
         'code',
         'discount_amount',
-        'max_discount_amount', // 👈 Tambah ini
+        'max_discount_amount', // 👈 Add this
         'discount_type',
-        'target',              // 👈 Tambah ini (products/shipping)
-        'is_all_products',     // 👈 Tambah ini (true/false)
+        'target',              // 👈 Add this (products/shipping)
+        'is_all_products',     // 👈 Add this (true/false)
         'stock',
         'start_date',
         'end_date'

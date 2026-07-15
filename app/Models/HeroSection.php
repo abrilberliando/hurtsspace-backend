@@ -10,7 +10,7 @@ class HeroSection extends Model
     use HasFactory;
 
     protected $fillable = [
-        'background_images', // 👈 Ganti/Tambah field ini
+        'background_images', // 👈 Change/Add this field
         'subtitle',
         'title',
         'description',

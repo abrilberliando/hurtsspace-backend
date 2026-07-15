@@ -42,7 +42,7 @@ class VoucherController extends Controller
         $voucher = Voucher::with('products:id,name')->where('code', $request->code)->first();
 
         if (!$voucher) {
-            return response()->json(['message' => 'Kode voucher tidak ditemukan.'], 404);
+            return response()->json(['message' => 'Voucher code not found.'], 404);
         }
 
         // --- VALIDASI STANDAR ---
@@ -52,16 +52,16 @@ class VoucherController extends Controller
 
         $now = Carbon::now();
         if ($voucher->start_date && $now->lt($voucher->start_date)) {
-            return response()->json(['message' => 'Voucher belum dimulai.'], 400);
+            return response()->json(['message' => 'Voucher is not yet active.'], 400);
         }
         if ($voucher->end_date && $now->gt($voucher->end_date)) {
-            return response()->json(['message' => 'Voucher udah kadaluarsa.'], 400);
+            return response()->json(['message' => 'Voucher has expired.'], 400);
         }
 
         // --- TAMBAHAN INFO INFO ---
         // Kita kirim info target-nya ke frontend biar Next.js lo bisa ngitung
         return response()->json([
-            'message' => 'Voucher valid!',
+            'message' => 'Voucher is valid!',
             'data' => [
                 'id' => $voucher->id,
                 'code' => $voucher->code,

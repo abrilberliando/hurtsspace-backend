@@ -10,7 +10,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class OrderPlaced extends Mailable implements ShouldQueue // 👈 Pake Queue biar ngebut
+class OrderPlaced extends Mailable implements ShouldQueue // 👈 Use Queue for speed
 {
     use Queueable, SerializesModels;
 
@@ -30,7 +30,7 @@ class OrderPlaced extends Mailable implements ShouldQueue // 👈 Pake Queue bia
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '📦 Order #' . $this->order->invoice_number . ' Sudah Masuk!',
+            subject: '📦 Order #' . $this->order->invoice_number . ' Received!',
         );
     }
 
@@ -40,7 +40,7 @@ class OrderPlaced extends Mailable implements ShouldQueue // 👈 Pake Queue bia
     public function content(): Content
     {
         return new Content(
-            view: 'emails.orders.placed', // Kita akan buat view ini
+            view: 'emails.orders.placed', // We will create this view
         );
     }
 
