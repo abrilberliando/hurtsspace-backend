@@ -190,6 +190,10 @@ Route::middleware(['auth:sanctum', EnsureHttpsAndHsts::class])->group(function (
         Route::delete('/linktree/links/{id}', [AdminLinktreeController::class, 'destroyLink']);
         Route::put('/linktree/links/{id}/toggle', [AdminLinktreeController::class, 'toggleLinkActive']);
         Route::put('/linktree/links/reorder', [AdminLinktreeController::class, 'reorderLinks']);
+        
+        // Backups
+        Route::apiResource('backups', \App\Http\Controllers\Api\AdminBackupController::class)->only(['index', 'store', 'destroy']);
     });
 
 });
+
