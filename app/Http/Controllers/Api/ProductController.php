@@ -64,7 +64,7 @@ class ProductController extends Controller
             'weight' => 'required|integer|min:1',
             'sizes' => 'required|array',
             'images' => 'required|array|min:1',
-            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:3072',
+            'images.*' => 'file|extensions:jpeg,png,jpg,webp|max:3072',
         ]);
 
         if ($validator->fails()) {
@@ -128,16 +128,16 @@ class ProductController extends Controller
         $product = Product::with('images', 'variants')->findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'category_id' => 'required|exists:categories,id',
-            'description' => 'required',
-            'price' => 'required|numeric|min:1000',
-            'weight' => 'required|integer|min:1',
-            'sizes' => 'required|array',
+            'name' => 'sometimes|required|string|max:255',
+            'category_id' => 'sometimes|required|exists:categories,id',
+            'description' => 'sometimes|required',
+            'price' => 'sometimes|required|numeric|min:1000',
+            'weight' => 'sometimes|required|integer|min:1',
+            'sizes' => 'sometimes|required|array',
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:3072',
-            // 👇 Wajib ada image_order buat nentuin posisi kongkrit
-            'image_order' => 'required|array',
+            'images.*' => 'file|extensions:jpeg,png,jpg,webp|max:3072',
+            // 👇 Wajib ada image_order buat nentuin posisi kongkrit jika ada update gambar
+            'image_order' => 'sometimes|required|array',
         ]);
 
         if ($validator->fails()) {
@@ -148,18 +148,25 @@ class ProductController extends Controller
 
         try {
             // A. Update Info Dasar
-            $product->update([
-                'name' => $request->name,
-                'slug' => ($request->name !== $product->name) ? Str::slug($request->name) . '-' . time() : $product->slug,
-                'category_id' => $request->category_id,
-                'description' => $request->description,
-                'price' => $request->price,
-                'weight' => $request->weight,
-                'is_collab' => $request->boolean('is_collab'),
-            ]);
+            $updateData = [];
+            if ($request->has('name')) {
+                $updateData['name'] = $request->name;
+                $updateData['slug'] = ($request->name !== $product->name) ? Str::slug($request->name) . '-' . time() : $product->slug;
+            }
+            if ($request->has('category_id')) $updateData['category_id'] = $request->category_id;
+            if ($request->has('description')) $updateData['description'] = $request->description;
+            if ($request->has('price')) $updateData['price'] = $request->price;
+            if ($request->has('weight')) $updateData['weight'] = $request->weight;
+            if ($request->has('is_collab')) $updateData['is_collab'] = $request->boolean('is_collab');
+            if ($request->has('stock')) $updateData['stock'] = $request->stock;
+
+            if (!empty($updateData)) {
+                $product->update($updateData);
+            }
 
             // B. PROSES SORTING & DELETE
-            $orderList = $request->input('image_order', []);
+            if ($request->has('image_order')) {
+                $orderList = $request->input('image_order', []);
 
             // 1. Kumpulkan URL "Existing" yang masih dipake
             $existingUrlsToKeep = [];
@@ -238,14 +245,17 @@ class ProductController extends Controller
                         ]);
                     }
                 }
+                }
             }
 
             // C. Handle Variants
-            $oldVariants = $product->variants->pluck('stock', 'size')->toArray();
-            $product->variants()->delete();
-            foreach ($request->sizes as $size) {
-                $stock = isset($oldVariants[$size]) ? $oldVariants[$size] : 10;
-                $product->variants()->create(['size' => $size, 'stock' => $stock]);
+            if ($request->has('sizes')) {
+                $oldVariants = $product->variants->pluck('stock', 'size')->toArray();
+                $product->variants()->delete();
+                foreach ($request->sizes as $size) {
+                    $stock = isset($oldVariants[$size]) ? $oldVariants[$size] : 10;
+                    $product->variants()->create(['size' => $size, 'stock' => $stock]);
+                }
             }
 
             DB::commit();
