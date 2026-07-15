@@ -31,7 +31,7 @@ class SecurityHeaders
         $csp .= "connect-src 'self' https://api.biteship.com; "; // 👈 FIX DITAMBAH DI SINI
 
         $csp .= "style-src 'self' 'unsafe-inline'; ";
-        $csp .= "img-src 'self' * data: https://ui-avatars.com; ";
+        $csp .= "img-src 'self' * data:; ";
         $csp .= "frame-src 'self' https://app.sandbox.midtrans.com; "; // Midtrans iframe
 
         $response->headers->set('Content-Security-Policy', $csp);

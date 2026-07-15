@@ -117,7 +117,6 @@ class AuthController extends Controller
             'email' => 'required|email',
             'name' => 'nullable|string',
             'uid' => 'required|string',
-            'avatar' => 'nullable|string',
         ]);
 
         $user = User::where('email', $request->email)->first();
@@ -131,7 +130,6 @@ class AuthController extends Controller
                 'role' => 'member',
                 'points' => 0,
                 'email_verified_at' => now(),
-                'avatar' => $request->avatar,
                 'uid' => $request->uid,
             ]);
         } else {
@@ -141,9 +139,6 @@ class AuthController extends Controller
             }
             if ($user->uid !== $request->uid) {
                 $user->update(['uid' => $request->uid]);
-            }
-            if (!$user->avatar && $request->avatar) {
-                $user->update(['avatar' => $request->avatar]);
             }
         }
 
@@ -211,8 +206,6 @@ class AuthController extends Controller
     public function updateProfile(Request $request)
     {
         $user = $request->user();
-        // ... (Logic update profile sama persis, gak ada perubahan di sini)
-        // Code disingkat biar gak kepanjangan, copy dari versi sebelumnya kalau perlu full logicnya
 
         // Validasi
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
@@ -221,28 +214,13 @@ class AuthController extends Controller
             'address_detail' => 'nullable|string',
             'city_id' => 'nullable|string',
             'province_id' => 'nullable|string',
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
         ]);
 
         if ($validator->fails()) return response()->json(['message' => 'Data profil gak valid nih.', 'errors' => $validator->errors()], 422);
 
-        $oldAvatarUrl = $user->avatar;
-        $newFilename = null;
-        $shouldDeleteOldFile = false;
-
         DB::beginTransaction();
 
         try {
-            if ($request->hasFile('avatar')) {
-                $shouldDeleteOldFile = $user->avatar && !Str::contains($user->avatar, ['ui-avatars.com', 'default', 'googleusercontent.com']);
-                $manager = new ImageManager(new Driver());
-                $image = $manager->read($request->file('avatar')->getRealPath());
-                $image->cover(500, 500);
-                $newFilename = 'avatar_' . $user->id . '_' . time() . '.webp';
-                Storage::disk('public')->put('avatars/' . $newFilename, $image->encode());
-                $user->avatar = url('storage/avatars/' . $newFilename);
-            }
-
             $user->name = $request->name;
             if ($request->has('phone')) $user->phone = $request->phone;
             if ($request->has('address_detail')) $user->address_detail = $request->address_detail;
@@ -252,17 +230,11 @@ class AuthController extends Controller
             $user->save();
             $user->refresh();
 
-            if ($shouldDeleteOldFile) {
-                $oldPath = str_replace(url('storage') . '/', '', $oldAvatarUrl);
-                if (Storage::disk('public')->exists($oldPath)) Storage::disk('public')->delete($oldPath);
-            }
-
             DB::commit();
             return response()->json(['message' => 'Profile updated successfully', 'user' => $user]);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            if ($newFilename) Storage::disk('public')->delete('avatars/' . $newFilename);
             Log::error('Auth Update Profile Failed: ' . $e->getMessage());
             return response()->json(['message' => 'Gagal update profile: ' . $e->getMessage()], 500);
         }

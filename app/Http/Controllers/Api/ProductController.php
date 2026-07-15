@@ -64,7 +64,7 @@ class ProductController extends Controller
             'weight' => 'required|integer|min:1',
             'sizes' => 'required|array',
             'images' => 'required|array|min:1',
-            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:10240',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:3072',
         ]);
 
         if ($validator->fails()) {
@@ -87,11 +87,18 @@ class ProductController extends Controller
             ]);
 
             // 👇 Simpan dengan sort_order saat create
+            $uploadedCloudinaryIds = [];
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $index => $image) {
-                    $imagePath = $image->store('products', 'public');
+                    // Upload ke Cloudinary dan convert ke webp
+                    $uploadResult = cloudinary()->uploadApi()->upload($image->getRealPath(), [
+                        'folder' => 'hspace/products',
+                        'format' => 'webp'
+                    ]);
+                    $uploadedCloudinaryIds[] = $uploadResult['public_id'];
+                    
                     $product->images()->create([
-                        'image_url' => url('storage/' . $imagePath),
+                        'image_url' => $uploadResult['secure_url'],
                         'is_primary' => $index === 0,
                         'sort_order' => $index + 1 // Urutan 1, 2, 3...
                     ]);
@@ -106,6 +113,11 @@ class ProductController extends Controller
             return response()->json(['message' => 'Produk berhasil dibuat!', 'data' => $product], 201);
         } catch (\Exception $e) {
             DB::rollBack();
+            if (isset($uploadedCloudinaryIds)) {
+                foreach ($uploadedCloudinaryIds as $publicId) {
+                    try { cloudinary()->uploadApi()->destroy($publicId); } catch (\Exception $ex) {}
+                }
+            }
             return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);
         }
     }
@@ -123,7 +135,7 @@ class ProductController extends Controller
             'weight' => 'required|integer|min:1',
             'sizes' => 'required|array',
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:10240',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:3072',
             // 👇 Wajib ada image_order buat nentuin posisi kongkrit
             'image_order' => 'required|array',
         ]);
@@ -161,20 +173,41 @@ class ProductController extends Controller
             // 2. Hapus Foto di DB yang DIBUANG user
             $imagesToDelete = $product->images()->whereNotIn('image_url', $existingUrlsToKeep)->get();
             foreach ($imagesToDelete as $img) {
-                $relativePath = str_replace(url('storage') . '/', '', $img->image_url);
-                if (Storage::disk('public')->exists($relativePath)) {
-                    Storage::disk('public')->delete($relativePath);
+                if (Str::contains($img->image_url, url('storage'))) {
+                    $relativePath = str_replace(url('storage') . '/', '', $img->image_url);
+                    if (Storage::disk('public')->exists($relativePath)) {
+                        Storage::disk('public')->delete($relativePath);
+                    }
+                } elseif (Str::contains($img->image_url, 'res.cloudinary.com')) {
+                    // Coba extract public ID dari URL Cloudinary
+                    $parts = explode('/upload/', $img->image_url);
+                    if (count($parts) == 2) {
+                        $publicIdWithExt = explode('/', $parts[1]);
+                        array_shift($publicIdWithExt); // Remove version e.g. v1234567890
+                        $publicIdPath = implode('/', $publicIdWithExt);
+                        $publicId = pathinfo($publicIdPath, PATHINFO_DIRNAME) . '/' . pathinfo($publicIdPath, PATHINFO_FILENAME);
+                        try {
+                            cloudinary()->uploadApi()->destroy($publicId);
+                        } catch (\Exception $e) {
+                            Log::error("Failed to delete Cloudinary image: " . $e->getMessage());
+                        }
+                    }
                 }
                 $img->delete();
             }
 
             // 3. Upload Foto Baru (Tampung di array index)
             $uploadedNewFiles = []; // Map index upload -> Object Model
+            $uploadedCloudinaryIds = [];
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $index => $image) {
-                    $path = $image->store('products', 'public');
+                    $uploadResult = cloudinary()->uploadApi()->upload($image->getRealPath(), [
+                        'folder' => 'hspace/products',
+                        'format' => 'webp'
+                    ]);
+                    $uploadedCloudinaryIds[] = $uploadResult['public_id'];
                     $uploadedNewFiles[$index] = $product->images()->create([
-                        'image_url' => url('storage/' . $path),
+                        'image_url' => $uploadResult['secure_url'],
                         'is_primary' => false,
                         'sort_order' => 999
                     ]);
@@ -225,6 +258,11 @@ class ProductController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+            if (isset($uploadedCloudinaryIds)) {
+                foreach ($uploadedCloudinaryIds as $publicId) {
+                    try { cloudinary()->uploadApi()->destroy($publicId); } catch (\Exception $ex) {}
+                }
+            }
             Log::error("Update Product Error: " . $e->getMessage());
             return response()->json(['message' => 'Gagal update produk, server error.'], 500);
         }
@@ -237,8 +275,25 @@ class ProductController extends Controller
         DB::beginTransaction();
         try {
             $product->images->each(function ($image) {
-                $path = str_replace(url('storage') . '/', '', $image->image_url);
-                Storage::disk('public')->delete($path);
+                if (Str::contains($image->image_url, url('storage'))) {
+                    $path = str_replace(url('storage') . '/', '', $image->image_url);
+                    if (Storage::disk('public')->exists($path)) {
+                        Storage::disk('public')->delete($path);
+                    }
+                } elseif (Str::contains($image->image_url, 'res.cloudinary.com')) {
+                    $parts = explode('/upload/', $image->image_url);
+                    if (count($parts) == 2) {
+                        $publicIdWithExt = explode('/', $parts[1]);
+                        array_shift($publicIdWithExt);
+                        $publicIdPath = implode('/', $publicIdWithExt);
+                        $publicId = pathinfo($publicIdPath, PATHINFO_DIRNAME) . '/' . pathinfo($publicIdPath, PATHINFO_FILENAME);
+                        try {
+                            cloudinary()->uploadApi()->destroy($publicId);
+                        } catch (\Exception $e) {
+                            Log::error("Failed to delete Cloudinary image: " . $e->getMessage());
+                        }
+                    }
+                }
             });
             $product->delete();
             DB::commit();

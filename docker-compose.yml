@@ -1,0 +1,56 @@
+version: '3.8'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hs-be-app
+    container_name: hs-be-app
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    networks:
+      - hs-network
+    depends_on:
+      - mysql
+
+  mysql:
+    image: mysql:8.0
+    container_name: hs-be-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+    volumes:
+      - hs-db-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - hs-network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: hs-be-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: ${DB_USERNAME}
+      PMA_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - hs-network
+    depends_on:
+      - mysql
+
+networks:
+  hs-network:
+    driver: bridge
+
+volumes:
+  hs-db-data:

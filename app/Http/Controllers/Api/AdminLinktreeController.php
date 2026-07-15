@@ -8,11 +8,34 @@ use App\Models\LinktreeLink;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver;
+use Illuminate\Support\Facades\Log;
 
 class AdminLinktreeController extends Controller
 {
+    private function deleteImage($url)
+    {
+        if (!$url) return;
+        
+        if (Str::contains($url, url('storage'))) {
+            $path = str_replace(url('storage') . '/', '', $url);
+            if (Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+            }
+        } elseif (Str::contains($url, 'res.cloudinary.com')) {
+            $parts = explode('/upload/', $url);
+            if (count($parts) == 2) {
+                $publicIdWithExt = explode('/', $parts[1]);
+                array_shift($publicIdWithExt);
+                $publicIdPath = implode('/', $publicIdWithExt);
+                $publicId = pathinfo($publicIdPath, PATHINFO_DIRNAME) . '/' . pathinfo($publicIdPath, PATHINFO_FILENAME);
+                try {
+                    cloudinary()->uploadApi()->destroy($publicId);
+                } catch (\Exception $e) {
+                    Log::error("Failed to delete Cloudinary image: " . $e->getMessage());
+                }
+            }
+        }
+    }
     public function getSettings()
     {
         $settings = LinktreeSetting::first();
@@ -48,58 +71,57 @@ class AdminLinktreeController extends Controller
             'button_text_color' => 'required|string',
             'button_border_color' => 'required|string',
             'button_style' => 'required|in:solid,outline,glass',
-            'logo' => 'nullable|image|max:5120',
-            'background_image' => 'nullable|image|max:10240',
+            'logo' => 'nullable|image|max:3072',
+            'background_image' => 'nullable|image|max:3072',
         ]);
 
-        $manager = new ImageManager(new Driver());
-
-        if ($request->hasFile('logo')) {
-            $file = $request->file('logo');
-            $image = $manager->read($file->getRealPath());
-            $image->scale(width: 400); // Resize logo
-            $filename = 'linktree_logo_' . Str::random(10) . '_' . time() . '.webp';
-            Storage::disk('public')->put('linktree/' . $filename, (string) $image->toWebp(80));
-            
-            // Delete old logo
-            if ($settings->logo) {
-                $oldPath = str_replace(url('storage') . '/', '', $settings->logo);
-                if (Storage::disk('public')->exists($oldPath)) {
-                    Storage::disk('public')->delete($oldPath);
-                }
+        DB::beginTransaction();
+        $uploadedCloudinaryIds = [];
+        try {
+            if ($request->hasFile('logo')) {
+                $uploadResult = cloudinary()->uploadApi()->upload($request->file('logo')->getRealPath(), [
+                    'folder' => 'hspace/linktree',
+                    'format' => 'webp',
+                    'transformation' => ['width' => 400, 'crop' => 'scale']
+                ]);
+                $uploadedCloudinaryIds[] = $uploadResult['public_id'];
+                
+                $this->deleteImage($settings->logo);
+                $settings->logo = $uploadResult['secure_url'];
             }
-            $settings->logo = url('storage/linktree/' . $filename);
-        }
 
-        if ($request->hasFile('background_image')) {
-            $file = $request->file('background_image');
-            $image = $manager->read($file->getRealPath());
-            $image->scale(width: 1200); // Resize bg
-            $filename = 'linktree_bg_' . Str::random(10) . '_' . time() . '.webp';
-            Storage::disk('public')->put('linktree/' . $filename, (string) $image->toWebp(80));
+            if ($request->hasFile('background_image')) {
+                $uploadResult = cloudinary()->uploadApi()->upload($request->file('background_image')->getRealPath(), [
+                    'folder' => 'hspace/linktree',
+                    'format' => 'webp',
+                    'transformation' => ['width' => 1200, 'crop' => 'scale']
+                ]);
+                $uploadedCloudinaryIds[] = $uploadResult['public_id'];
 
-            // Delete old background
-            if ($settings->background_image) {
-                $oldPath = str_replace(url('storage') . '/', '', $settings->background_image);
-                if (Storage::disk('public')->exists($oldPath)) {
-                    Storage::disk('public')->delete($oldPath);
-                }
+                $this->deleteImage($settings->background_image);
+                $settings->background_image = $uploadResult['secure_url'];
             }
-            $settings->background_image = url('storage/linktree/' . $filename);
+
+            $settings->page_title = $request->page_title;
+            $settings->page_subtitle = $request->page_subtitle;
+            $settings->background_type = $request->background_type;
+            $settings->background_color = $request->background_color;
+            $settings->page_text_color = $request->page_text_color;
+            $settings->button_bg_color = $request->button_bg_color;
+            $settings->button_text_color = $request->button_text_color;
+            $settings->button_border_color = $request->button_border_color;
+            $settings->button_style = $request->button_style;
+            $settings->save();
+
+            DB::commit();
+            return response()->json(['message' => 'Settings updated successfully', 'data' => $settings]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            foreach ($uploadedCloudinaryIds as $publicId) {
+                try { cloudinary()->uploadApi()->destroy($publicId); } catch (\Exception $ex) {}
+            }
+            return response()->json(['message' => 'Failed to update settings: ' . $e->getMessage()], 500);
         }
-
-        $settings->page_title = $request->page_title;
-        $settings->page_subtitle = $request->page_subtitle;
-        $settings->background_type = $request->background_type;
-        $settings->background_color = $request->background_color;
-        $settings->page_text_color = $request->page_text_color;
-        $settings->button_bg_color = $request->button_bg_color;
-        $settings->button_text_color = $request->button_text_color;
-        $settings->button_border_color = $request->button_border_color;
-        $settings->button_style = $request->button_style;
-        $settings->save();
-
-        return response()->json(['message' => 'Settings updated successfully', 'data' => $settings]);
     }
 
     public function storeLink(Request $request)
@@ -108,32 +130,41 @@ class AdminLinktreeController extends Controller
             'icon' => 'required|string',
             'label' => 'required|string',
             'url' => 'required|string',
-            'custom_icon' => 'nullable|image|max:2048',
+            'custom_icon' => 'nullable|image|max:3072',
         ]);
 
-        $customIconUrl = null;
-        if ($request->hasFile('custom_icon')) {
-            $manager = new ImageManager(new Driver());
-            $file = $request->file('custom_icon');
-            $image = $manager->read($file->getRealPath());
-            $image->scale(width: 100);
-            $filename = 'linktree_icon_' . Str::random(10) . '_' . time() . '.webp';
-            Storage::disk('public')->put('linktree/' . $filename, (string) $image->toWebp(80));
-            $customIconUrl = url('storage/linktree/' . $filename);
+        DB::beginTransaction();
+        try {
+            $customIconUrl = null;
+            if ($request->hasFile('custom_icon')) {
+                $uploadResult = cloudinary()->uploadApi()->upload($request->file('custom_icon')->getRealPath(), [
+                    'folder' => 'hspace/linktree',
+                    'format' => 'webp',
+                    'transformation' => ['width' => 100, 'crop' => 'scale']
+                ]);
+                $customIconUrl = $uploadResult['secure_url'];
+            }
+
+            $maxOrder = LinktreeLink::max('sort_order');
+
+            $link = LinktreeLink::create([
+                'icon' => $request->icon,
+                'custom_icon' => $customIconUrl,
+                'label' => $request->label,
+                'url' => $request->url,
+                'sort_order' => $maxOrder !== null ? $maxOrder + 1 : 0,
+                'is_active' => true,
+            ]);
+
+            DB::commit();
+            return response()->json(['message' => 'Link created successfully', 'data' => $link], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            if (isset($uploadResult)) {
+                try { cloudinary()->uploadApi()->destroy($uploadResult['public_id']); } catch (\Exception $ex) {}
+            }
+            return response()->json(['message' => 'Failed to create link: ' . $e->getMessage()], 500);
         }
-
-        $maxOrder = LinktreeLink::max('sort_order');
-
-        $link = LinktreeLink::create([
-            'icon' => $request->icon,
-            'custom_icon' => $customIconUrl,
-            'label' => $request->label,
-            'url' => $request->url,
-            'sort_order' => $maxOrder !== null ? $maxOrder + 1 : 0,
-            'is_active' => true,
-        ]);
-
-        return response()->json(['message' => 'Link created successfully', 'data' => $link]);
     }
 
     public function updateLink(Request $request, $id)
@@ -144,52 +175,46 @@ class AdminLinktreeController extends Controller
             'icon' => 'required|string',
             'label' => 'required|string',
             'url' => 'required|string',
-            'custom_icon' => 'nullable|image|max:2048',
+            'custom_icon' => 'nullable|image|max:3072',
         ]);
 
-        if ($request->hasFile('custom_icon')) {
-            $manager = new ImageManager(new Driver());
-            $file = $request->file('custom_icon');
-            $image = $manager->read($file->getRealPath());
-            $image->scale(width: 100);
-            $filename = 'linktree_icon_' . Str::random(10) . '_' . time() . '.webp';
-            Storage::disk('public')->put('linktree/' . $filename, (string) $image->toWebp(80));
-            
-            if ($link->custom_icon) {
-                $oldPath = str_replace(url('storage') . '/', '', $link->custom_icon);
-                if (Storage::disk('public')->exists($oldPath)) {
-                    Storage::disk('public')->delete($oldPath);
-                }
+        DB::beginTransaction();
+        try {
+            if ($request->hasFile('custom_icon')) {
+                $uploadResult = cloudinary()->uploadApi()->upload($request->file('custom_icon')->getRealPath(), [
+                    'folder' => 'hspace/linktree',
+                    'format' => 'webp',
+                    'transformation' => ['width' => 100, 'crop' => 'scale']
+                ]);
+                
+                $this->deleteImage($link->custom_icon);
+                $link->custom_icon = $uploadResult['secure_url'];
+            } elseif ($request->has('remove_custom_icon') && $request->remove_custom_icon == 'true') {
+                $this->deleteImage($link->custom_icon);
+                $link->custom_icon = null;
             }
-            $link->custom_icon = url('storage/linktree/' . $filename);
-        } elseif ($request->has('remove_custom_icon') && $request->remove_custom_icon == 'true') {
-            if ($link->custom_icon) {
-                $oldPath = str_replace(url('storage') . '/', '', $link->custom_icon);
-                if (Storage::disk('public')->exists($oldPath)) {
-                    Storage::disk('public')->delete($oldPath);
-                }
+
+            $link->icon = $request->icon;
+            $link->label = $request->label;
+            $link->url = $request->url;
+            $link->save();
+
+            DB::commit();
+            return response()->json(['message' => 'Link updated successfully', 'data' => $link]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            if (isset($uploadResult)) {
+                try { cloudinary()->uploadApi()->destroy($uploadResult['public_id']); } catch (\Exception $ex) {}
             }
-            $link->custom_icon = null;
+            return response()->json(['message' => 'Failed to update link: ' . $e->getMessage()], 500);
         }
-
-        $link->icon = $request->icon;
-        $link->label = $request->label;
-        $link->url = $request->url;
-        $link->save();
-
-        return response()->json(['message' => 'Link updated successfully', 'data' => $link]);
     }
 
     public function destroyLink($id)
     {
         $link = LinktreeLink::findOrFail($id);
         
-        if ($link->custom_icon) {
-            $oldPath = str_replace(url('storage') . '/', '', $link->custom_icon);
-            if (Storage::disk('public')->exists($oldPath)) {
-                Storage::disk('public')->delete($oldPath);
-            }
-        }
+        $this->deleteImage($link->custom_icon);
 
         $link->delete();
 
