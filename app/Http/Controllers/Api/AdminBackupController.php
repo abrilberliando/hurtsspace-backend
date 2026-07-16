@@ -32,9 +32,9 @@ class AdminBackupController extends Controller
             $dbDatabase = env('DB_DATABASE', 'hspace');
 
             // Dump database
-            $command = "mysqldump --skip-ssl --no-tablespaces -h {$dbHost} -P {$dbPort} -u {$dbUsername} " .
-                       ($dbPassword ? "-p{$dbPassword} " : "") .
-                       "{$dbDatabase} > {$storagePath} 2>&1";
+            $command = "mysqldump --skip-ssl --no-tablespaces -h " . escapeshellarg($dbHost) . " -P " . escapeshellarg($dbPort) . " -u " . escapeshellarg($dbUsername) . " " .
+                       ($dbPassword ? "-p" . escapeshellarg($dbPassword) . " " : "") .
+                       escapeshellarg($dbDatabase) . " > " . escapeshellarg($storagePath) . " 2>&1";
                        
             exec($command, $output, $returnVar);
 
@@ -125,9 +125,9 @@ class AdminBackupController extends Controller
             $dbDatabase = env('DB_DATABASE', 'hspace');
 
             // Import database
-            $command = "mysql --skip-ssl -h {$dbHost} -P {$dbPort} -u {$dbUsername} " .
-                       ($dbPassword ? "-p{$dbPassword} " : "") .
-                       "{$dbDatabase} < {$storagePath} 2>&1";
+            $command = "mysql --skip-ssl -h " . escapeshellarg($dbHost) . " -P " . escapeshellarg($dbPort) . " -u " . escapeshellarg($dbUsername) . " " .
+                       ($dbPassword ? "-p" . escapeshellarg($dbPassword) . " " : "") .
+                       escapeshellarg($dbDatabase) . " < " . escapeshellarg($storagePath) . " 2>&1";
                        
             exec($command, $output, $returnVar);
 
