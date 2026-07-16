@@ -10,8 +10,8 @@ return [
         'https://hurtsspace.com',
         'https://www.hurtsspace.com',
         'https://*.hurtsspace.com',
-        'http://localhost:3000',
-        'https://hurtsspace-frontend-staging.vercel.app',
+        // 'http://localhost:3000',
+        // 'https://hurtsspace-frontend-staging.vercel.app',
     ],
 
     'allowed_origins_patterns' => [],
