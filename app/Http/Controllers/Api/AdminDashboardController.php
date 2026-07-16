@@ -16,7 +16,7 @@ class AdminDashboardController extends Controller
         // 1. Total Pendapatan (Status Paid/Shipped/Completed)
         $revenue = Order::whereIn('status', ['paid', 'shipped', 'completed'])->sum('total_price');
 
-        // 2. Total Order Masuk
+        // 2. Total Incoming Orders
         $totalOrders = Order::count();
 
         // 3. Total Member

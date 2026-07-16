@@ -29,7 +29,7 @@ class AdminVoucherController extends Controller
             'end_date' => 'nullable|date|after_or_equal:start_date',
         ]);
 
-        // 2. Simpan Data (Pake all() biar ringkes, tapi aman karena ada validasi & fillable)
+        // 2. Save Data (Use all() for brevity, but safe due to validation & fillable)
         $voucher = Voucher::create([
             'code' => $request->code,
             'discount_type' => $request->discount_type,
@@ -42,7 +42,7 @@ class AdminVoucherController extends Controller
             'end_date' => $request->end_date,
         ]);
 
-        return response()->json(['message' => 'Voucher berhasil dibuat!', 'data' => $voucher], 201);
+        return response()->json(['message' => 'Voucher created successfully!', 'data' => $voucher], 201);
     }
 
     public function destroy($id)
@@ -58,7 +58,7 @@ class AdminVoucherController extends Controller
         return response()->json(['data' => $voucher]);
     }
 
-    // 2. Simpan/Sync produk ke voucher
+    // 2. Save/Sync products to voucher
     public function syncProducts(Request $request, $id)
     {
         $request->validate([
@@ -68,9 +68,9 @@ class AdminVoucherController extends Controller
 
         $voucher = Voucher::findOrFail($id);
 
-        // Pake sync() biar Laravel otomatis hapus yang lama & nambah yang baru
+        // Use sync() so Laravel automatically deletes the old ones & adds new ones
         $voucher->products()->sync($request->product_ids);
 
-        return response()->json(['message' => 'Produk berhasil di-update ke voucher!']);
+        return response()->json(['message' => 'Products updated to voucher successfully!']);
     }
 }

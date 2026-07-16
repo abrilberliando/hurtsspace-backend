@@ -60,7 +60,7 @@ class WebhookController extends Controller
                     $this->markAsPaid($order);
                 }
             } else if ($transactionStatus == 'settlement') {
-                $this->markAsPaid($order); // Uang masuk = Lunas
+                $this->markAsPaid($order); // Payment received = Paid
             } else if ($transactionStatus == 'cancel' || $transactionStatus == 'deny' || $transactionStatus == 'expire') {
                 $this->markAsCancelled($order); // Logic Cancel & Restock
             } else if ($transactionStatus == 'pending') {
@@ -77,7 +77,7 @@ class WebhookController extends Controller
         }
     }
 
-    // Helper: Tandai Lunas, Kirim Email User & Admin, Tambah Poin
+    // Helper: Mark Paid, Send Email to User & Admin, Add Points
     private function markAsPaid($order)
     {
         $order->update(['status' => 'paid']);
@@ -98,7 +98,7 @@ class WebhookController extends Controller
         try {
             Mail::to($order->user->email)->send(new OrderPaid($order));
         } catch (\Exception $e) {
-            Log::error('Gagal kirim email user paid: ' . $e->getMessage());
+            Log::error('Failed to send user paid email: ' . $e->getMessage());
         }
 
         // C. KIRIM NOTIFIKASI KE ADMIN (Email + Database)
@@ -110,7 +110,7 @@ class WebhookController extends Controller
                 Log::info("Notif admin dikirim ke: $adminEmail");
             }
         } catch (\Exception $e) {
-            Log::error('Gagal kirim notif admin: ' . $e->getMessage());
+            Log::error('Failed to send admin notification: ' . $e->getMessage());
         }
     }
 

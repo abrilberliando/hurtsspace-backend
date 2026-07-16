@@ -24,7 +24,7 @@ class OrderPaid extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '✅ Pembayaran Diterima! Order #' . $this->order->invoice_number . ' Diproses',
+            subject: '✅ Payment Received! Order #' . $this->order->invoice_number . ' Processed',
         );
     }
 

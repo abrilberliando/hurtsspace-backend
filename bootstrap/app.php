@@ -25,6 +25,10 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureHttpsAndHsts::class,
         ]));
 
+        // 👇 1.5 TRUST PROXIES (PENTING BUAT RAILWAY/PROXY)
+        // Agar Laravel membaca header X-Forwarded-Proto dari Railway sebagai HTTPS asli
+        $middleware->trustProxies(at: '*');
+
         // 👇 2. REGISTER ALIAS (Pengganti Kernel.php)
         $middleware->alias([
             'is_admin' => IsAdmin::class,

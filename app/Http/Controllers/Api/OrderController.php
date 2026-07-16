@@ -54,7 +54,7 @@ class OrderController extends Controller
 
                 // Cek Stok
                 if ($variant->stock < $item['quantity']) {
-                    return response()->json(['message' => "Stok {$product->name} ukuran {$variant->size} abis, G!"], 400);
+                    return response()->json(['message' => "Stock for {$product->name} size {$variant->size} is empty!"], 400);
                 }
 
                 // Ambil harga dari DB, cast ke Integer buat Midtrans
@@ -103,7 +103,7 @@ class OrderController extends Controller
             // Handle Voucher (Logic Diskon bisa ditambahkan di sini jika ada)
             // if ($request->voucher_code) { ... }
 
-            // 4. SIMPAN ORDER UTAMA
+            // 4. SAVE MAIN ORDER
             $order = Order::create([
                 'user_id' => $user->id,
                 'invoice_number' => $invoice,
@@ -117,7 +117,7 @@ class OrderController extends Controller
                 // 'voucher_code' => $request->voucher_code,
             ]);
 
-            // Simpan Detail Item
+            // Save Item Details
             foreach ($orderItems as $itemData) {
                 $order->items()->create($itemData);
             }
@@ -160,13 +160,13 @@ class OrderController extends Controller
 
             } catch (\Exception $e) {
                 // Jangan sampe error email ngebatalin order, cukup log aja
-                Log::error('Gagal kirim email order: ' . $e->getMessage());
+                Log::error('Failed to send order email: ' . $e->getMessage());
             }
 
             return response()->json([
                 'message' => 'Order created successfully',
                 'snap_token' => $snapToken,
-                // Redirect URL buat fallback kalau popup gagal
+                // Redirect URL for fallback if popup fails
                 'redirect_url' => "https://app.sandbox.midtrans.com/snap/v2/vtweb/" . $snapToken
             ]);
 
@@ -214,7 +214,7 @@ class OrderController extends Controller
             ->first();
 
         if (!$order) {
-            return response()->json(['message' => 'Order tidak ditemukan atau sudah diproses.'], 404);
+            return response()->json(['message' => 'Order not found or already processed.'], 404);
         }
 
         DB::beginTransaction();
@@ -230,10 +230,10 @@ class OrderController extends Controller
             $order->update(['status' => 'cancelled']);
 
             DB::commit();
-            return response()->json(['message' => 'Order berhasil dibatalkan. Stok aman.']);
+            return response()->json(['message' => 'Order cancelled successfully. Stock restored.']);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Gagal cancel'], 500);
+            return response()->json(['message' => 'Failed to cancel'], 500);
         }
     }
 
@@ -245,7 +245,7 @@ class OrderController extends Controller
             ->first();
 
         if (!$order) {
-            return response()->json(['message' => 'Order tidak valid untuk diselesaikan.'], 400);
+            return response()->json(['message' => 'Order is not valid for completion.'], 400);
         }
 
         $order->update(['status' => 'completed']);

@@ -47,16 +47,16 @@
 
                             <!-- Greeting -->
                             <h2 style="font-size: 17px; font-weight: 600; margin: 0 0 12px 0; color: #1a1a1a; letter-spacing: 0.3px;">
-                                Halo, {{ $user->name }} 🔐
+                                Hello, {{ $user->name }} 🔐
                             </h2>
 
                             <!-- Message -->
                             <p style="font-size: 14px; line-height: 1.7; margin: 0 0 15px 0; color: #525252;">
-                                Kami menerima permintaan untuk mereset password akun Hurtsspace Anda. Klik tombol di bawah untuk membuat password baru.
+                                We received a request to reset the password for your Hurtsspace account. Click the button below to create a new password.
                             </p>
 
                             <p style="font-size: 14px; line-height: 1.7; margin: 0 0 30px 0; color: #525252;">
-                                Jika Anda tidak meminta reset password, abaikan email ini dan akun Anda akan tetap aman.
+                                If you didn't request a password reset, ignore this email and your account will remain secure.
                             </p>
 
                             <!-- Button -->
@@ -74,7 +74,7 @@
 
                             <!-- Alternative minimal link -->
                             <p style="font-size: 12px; color: #71717a; margin: 15px 0 0 0; text-align: center;">
-                                atau <a href="{{ $url }}" style="color: #000000; text-decoration: none; border-bottom: 1px solid #000000; font-weight: 500;">reset via link ini</a>
+                                or <a href="{{ $url }}" style="color: #000000; text-decoration: none; border-bottom: 1px solid #000000; font-weight: 500;">reset via this link</a>
                             </p>
 
                             <!-- Divider -->
@@ -83,10 +83,10 @@
                             <!-- Security Note -->
                             <div style="background-color: #fafafa; border-left: 3px solid #000000; padding: 15px; border-radius: 4px;">
                                 <p style="font-size: 12px; color: #525252; margin: 0 0 8px 0; font-weight: 600;">
-                                    ⚠️ Catatan Keamanan
+                                    ⚠️ Security Note
                                 </p>
                                 <p style="font-size: 12px; color: #71717a; margin: 0; line-height: 1.6;">
-                                    Link reset password berlaku selama <strong>1 jam</strong>. Jangan bagikan link ini ke siapapun. Jika Anda merasa ada aktivitas mencurigakan, segera hubungi tim support kami.
+                                    The password reset link is valid for <strong>1 hour</strong>. Do not share this link with anyone. If you notice any suspicious activity, please contact our support team immediately.
                                 </p>
                             </div>
 
@@ -117,7 +117,7 @@
 
                 <!-- Bottom Note -->
                 <p style="font-size: 11px; color: #a3a3a3; margin: 20px 0 0 0; text-align: center;">
-                    Email otomatis — mohon tidak membalas pesan ini
+                    Automated email — please do not reply to this message
                 </p>
 
             </td>

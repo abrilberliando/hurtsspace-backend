@@ -23,7 +23,7 @@ class CategoryController extends Controller
         $request->validate([
             'name' => 'required|string|max:255|unique:categories,name',
         ], [
-            'name.unique' => 'Kategori ini udah ada, G!'
+            'name.unique' => 'Category already exists!'
         ]);
 
         $category = Category::create([
@@ -32,7 +32,7 @@ class CategoryController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Kategori berhasil dibuat!',
+            'message' => 'Category created successfully!',
             'data' => $category
         ], 201);
     }
@@ -53,12 +53,12 @@ class CategoryController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Kategori berhasil diupdate!',
+            'message' => 'Category updated successfully!',
             'data' => $category
         ]);
     }
 
-    // 4. ADMIN: Hapus Kategori (Safe Delete)
+    // 4. ADMIN: Delete Category (Safe Delete)
     public function destroy($id)
     {
         $category = Category::findOrFail($id);
@@ -67,12 +67,12 @@ class CategoryController extends Controller
         // Asumsi relasi di model Category adalah function products()
         if ($category->products()->count() > 0) {
             return response()->json([
-                'message' => 'Gagal hapus! Masih ada produk di kategori ini.'
+                'message' => 'Failed to delete! There are still products in this category.'
             ], 422);
         }
 
         $category->delete();
 
-        return response()->json(['message' => 'Kategori berhasil dihapus!']);
+        return response()->json(['message' => 'Category deleted successfully!']);
     }
 }

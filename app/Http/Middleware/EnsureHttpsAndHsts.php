@@ -10,7 +10,7 @@ class EnsureHttpsAndHsts
 {
     public function handle(Request $request, Closure $next): Response
     {
-        // 1. Force HTTPS (Jika belum HTTPS, redirect ke HTTPS)
+        // 1. Force HTTPS (If not HTTPS yet, redirect to HTTPS)
         if (!$request->secure() && config('app.env') === 'production') {
             return redirect()->secure($request->getRequestUri());
         }

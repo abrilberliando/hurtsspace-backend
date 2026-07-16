@@ -8,8 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB; // 👈 Transaction
 use Illuminate\Support\Str;
-use Intervention\Image\ImageManager; // 👈 Image Optimization
-use Intervention\Image\Drivers\Gd\Driver;
+use Illuminate\Support\Facades\Log;
 
 class BannerController extends Controller
 {
@@ -51,33 +50,33 @@ class BannerController extends Controller
             'title' => 'required|string',
             'position' => 'required|in:1,2',
             // Validasi gambar max 5MB sebelum di-resize
-            'image_left' => 'required|image|max:10420',
-            'image_right' => 'required|image|max:10240',
+            'image_left' => 'required|image|max:3072',
+            'image_right' => 'required|image|max:3072',
             'link_url' => 'required|string',
         ]);
 
         DB::beginTransaction();
+        $uploadedCloudinaryIds = [];
         try {
-            $manager = new ImageManager(new Driver());
-
-            // Helper function buat process image
-            $processImage = function($file) use ($manager) {
-                $image = $manager->read($file->getRealPath());
-                // Resize biar gak kegedean (misal lebar max 1200px, tinggi auto)
-                // Sesuaikan ukuran ini sama desain frontend lo
-                $image->scale(width: 1200);
-
-                $filename = 'banner_' . Str::random(10) . '_' . time() . '.webp';
-                Storage::disk('public')->put('banners/' . $filename, $image->encode());
-
-                return url('storage/banners/' . $filename);
+            // Helper function buat process image dengan Cloudinary
+            $processImage = function($file) use (&$uploadedCloudinaryIds) {
+                $uploadResult = cloudinary()->uploadApi()->upload($file->getRealPath(), [
+                    'folder' => 'hspace/banners',
+                    'format' => 'webp',
+                    'transformation' => [
+                        'width' => 1200,
+                        'crop' => 'scale'
+                    ]
+                ]);
+                $uploadedCloudinaryIds[] = $uploadResult['public_id'];
+                return $uploadResult['secure_url'];
             };
 
             // Process kedua gambar
             $urlLeft = $processImage($request->file('image_left'));
             $urlRight = $processImage($request->file('image_right'));
 
-            // Simpan ke DB
+            // Save to DB
             $banner = Banner::create([
                 'title' => $request->title,
                 'position' => $request->position,
@@ -93,7 +92,10 @@ class BannerController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Gagal upload banner: ' . $e->getMessage()], 500);
+            foreach ($uploadedCloudinaryIds as $publicId) {
+                try { cloudinary()->uploadApi()->destroy($publicId); } catch (\Exception $ex) {}
+            }
+            return response()->json(['message' => 'Failed to upload banner: ' . $e->getMessage()], 500);
         }
     }
 
@@ -105,29 +107,47 @@ class BannerController extends Controller
         $request->validate([
             'title' => 'required|string',
             'link_url' => 'required|string',
-            'image_left' => 'nullable|image|max:10240',
-            'image_right' => 'nullable|image|max:10240',
+            'image_left' => 'nullable|image|max:3072',
+            'image_right' => 'nullable|image|max:3072',
         ]);
 
         DB::beginTransaction();
+        $uploadedCloudinaryIds = [];
         try {
-            $manager = new ImageManager(new Driver());
-
             // Helper function update image
-            $updateImage = function($file, $oldUrl) use ($manager) {
-                // Hapus file lama
-                $oldPath = str_replace(url('storage') . '/', '', $oldUrl);
-                if (Storage::disk('public')->exists($oldPath)) {
-                    Storage::disk('public')->delete($oldPath);
+            $updateImage = function($file, $oldUrl) use (&$uploadedCloudinaryIds) {
+                // Delete old file
+                if (Str::contains($oldUrl, url('storage'))) {
+                    $oldPath = str_replace(url('storage') . '/', '', $oldUrl);
+                    if (Storage::disk('public')->exists($oldPath)) {
+                        Storage::disk('public')->delete($oldPath);
+                    }
+                } elseif (Str::contains($oldUrl, 'res.cloudinary.com')) {
+                    $parts = explode('/upload/', $oldUrl);
+                    if (count($parts) == 2) {
+                        $publicIdWithExt = explode('/', $parts[1]);
+                        array_shift($publicIdWithExt);
+                        $publicIdPath = implode('/', $publicIdWithExt);
+                        $publicId = pathinfo($publicIdPath, PATHINFO_DIRNAME) . '/' . pathinfo($publicIdPath, PATHINFO_FILENAME);
+                        try {
+                            cloudinary()->uploadApi()->destroy($publicId);
+                        } catch (\Exception $e) {
+                            Log::error("Failed to delete Cloudinary banner: " . $e->getMessage());
+                        }
+                    }
                 }
 
-                // Upload baru
-                $image = $manager->read($file->getRealPath());
-                $image->scale(width: 1200);
-                $filename = 'banner_' . Str::random(10) . '_' . time() . '.webp';
-                Storage::disk('public')->put('banners/' . $filename, $image->encode());
-
-                return url('storage/banners/' . $filename);
+                // Upload baru ke Cloudinary
+                $uploadResult = cloudinary()->uploadApi()->upload($file->getRealPath(), [
+                    'folder' => 'hspace/banners',
+                    'format' => 'webp',
+                    'transformation' => [
+                        'width' => 1200,
+                        'crop' => 'scale'
+                    ]
+                ]);
+                $uploadedCloudinaryIds[] = $uploadResult['public_id'];
+                return $uploadResult['secure_url'];
             };
 
             // Cek ada update gambar gak
@@ -149,28 +169,45 @@ class BannerController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Gagal update banner: ' . $e->getMessage()], 500);
+            foreach ($uploadedCloudinaryIds as $publicId) {
+                try { cloudinary()->uploadApi()->destroy($publicId); } catch (\Exception $ex) {}
+            }
+            return response()->json(['message' => 'Failed to update banner: ' . $e->getMessage()], 500);
         }
     }
 
-    // 5. ADMIN: Hapus Banner (Bersih-bersih File)
+    // 5. ADMIN: Delete Banner (Clean up File)
     public function destroy($id)
     {
         $banner = Banner::findOrFail($id);
 
         DB::beginTransaction();
         try {
-            // Hapus file fisik kiri
-            $pathLeft = str_replace(url('storage') . '/', '', $banner->image_left);
-            if (Storage::disk('public')->exists($pathLeft)) {
-                Storage::disk('public')->delete($pathLeft);
-            }
+            // Helper to delete physical/cloud file
+            $deleteImage = function($url) {
+                if (Str::contains($url, url('storage'))) {
+                    $path = str_replace(url('storage') . '/', '', $url);
+                    if (Storage::disk('public')->exists($path)) {
+                        Storage::disk('public')->delete($path);
+                    }
+                } elseif (Str::contains($url, 'res.cloudinary.com')) {
+                    $parts = explode('/upload/', $url);
+                    if (count($parts) == 2) {
+                        $publicIdWithExt = explode('/', $parts[1]);
+                        array_shift($publicIdWithExt);
+                        $publicIdPath = implode('/', $publicIdWithExt);
+                        $publicId = pathinfo($publicIdPath, PATHINFO_DIRNAME) . '/' . pathinfo($publicIdPath, PATHINFO_FILENAME);
+                        try {
+                            cloudinary()->uploadApi()->destroy($publicId);
+                        } catch (\Exception $e) {
+                            Log::error("Failed to delete Cloudinary banner: " . $e->getMessage());
+                        }
+                    }
+                }
+            };
 
-            // Hapus file fisik kanan
-            $pathRight = str_replace(url('storage') . '/', '', $banner->image_right);
-            if (Storage::disk('public')->exists($pathRight)) {
-                Storage::disk('public')->delete($pathRight);
-            }
+            $deleteImage($banner->image_left);
+            $deleteImage($banner->image_right);
 
             $banner->delete();
             DB::commit();
@@ -179,7 +216,7 @@ class BannerController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Gagal delete banner: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to delete banner: ' . $e->getMessage()], 500);
         }
     }
 

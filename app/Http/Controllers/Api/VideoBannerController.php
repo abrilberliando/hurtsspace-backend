@@ -6,8 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\VideoBanner;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage; // 👈 Pake Storage Lokal
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class VideoBannerController extends Controller
 {
@@ -36,23 +37,23 @@ class VideoBannerController extends Controller
     {
         // Validasi Video: Max 50MB (sesuaikan config php.ini lo ya: upload_max_filesize)
         $request->validate([
-            'video' => 'required|file|mimetypes:video/mp4,video/quicktime|max:7000',
+            'video' => 'required|file|mimetypes:video/mp4,video/quicktime|max:10240',
             'title' => 'nullable|string',
             'link_url' => 'nullable|string',
         ]);
 
         DB::beginTransaction();
         try {
-            // Upload Video ke Local Storage
-            // Folder: storage/app/public/videos
-            $file = $request->file('video');
-            $filename = 'video_' . Str::random(10) . '_' . time() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('videos', $filename, 'public');
+            // Upload Video ke Cloudinary
+            $uploadResult = cloudinary()->uploadApi()->upload($request->file('video')->getRealPath(), [
+                'folder' => 'hspace/videos'
+            , 'resource_type' => 'video']);
+            $videoUrl = $uploadResult['secure_url'];
 
             $video = VideoBanner::create([
                 'title' => $request->title,
                 'description' => $request->description, // Opsional di migration
-                'video_url' => url('storage/' . $path), // Simpan URL lengkap
+                'video_url' => $videoUrl, // Save full URL from Cloudinary
                 'link_url' => $request->link_url,
                 'is_active' => true // Default langsung aktif
             ]);
@@ -65,10 +66,22 @@ class VideoBannerController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            // Hapus file kalau DB gagal, biar gak jadi file hantu
-            if (isset($path)) Storage::disk('public')->delete($path);
+            // Delete file if DB fails, to prevent ghost files
+            // Note: At this stage if Cloudinary already uploaded, ideally delete it
+            if (isset($videoUrl) && Str::contains($videoUrl, 'res.cloudinary.com')) {
+                try {
+                    $parts = explode('/upload/', $videoUrl);
+                    if (count($parts) == 2) {
+                        $publicIdWithExt = explode('/', $parts[1]);
+                        array_shift($publicIdWithExt);
+                        $publicIdPath = implode('/', $publicIdWithExt);
+                        $publicId = pathinfo($publicIdPath, PATHINFO_DIRNAME) . '/' . pathinfo($publicIdPath, PATHINFO_FILENAME);
+                        cloudinary()->uploadApi()->destroy($publicId, ['resource_type' => 'video']);
+                    }
+                } catch (\Exception $deleteEx) {}
+            }
 
-            return response()->json(['message' => 'Gagal upload: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to upload: ' . $e->getMessage()], 500);
         }
     }
 
@@ -80,20 +93,32 @@ class VideoBannerController extends Controller
         DB::beginTransaction();
         try {
             if ($request->hasFile('video')) {
-                // 1. Hapus Video Lama (Biar hemat storage)
+                // 1. Delete Old Video (To save storage)
                 if (Str::contains($videoBanner->video_url, url('storage'))) {
                     $oldPath = str_replace(url('storage') . '/', '', $videoBanner->video_url);
                     if (Storage::disk('public')->exists($oldPath)) {
                         Storage::disk('public')->delete($oldPath);
                     }
+                } elseif (Str::contains($videoBanner->video_url, 'res.cloudinary.com')) {
+                    try {
+                        $parts = explode('/upload/', $videoBanner->video_url);
+                        if (count($parts) == 2) {
+                            $publicIdWithExt = explode('/', $parts[1]);
+                            array_shift($publicIdWithExt);
+                            $publicIdPath = implode('/', $publicIdWithExt);
+                            $publicId = pathinfo($publicIdPath, PATHINFO_DIRNAME) . '/' . pathinfo($publicIdPath, PATHINFO_FILENAME);
+                            cloudinary()->uploadApi()->destroy($publicId, ['resource_type' => 'video']);
+                        }
+                    } catch (\Exception $e) {
+                        Log::error("Failed to delete old video from Cloudinary: " . $e->getMessage());
+                    }
                 }
 
-                // 2. Upload Baru
-                $file = $request->file('video');
-                $filename = 'video_' . Str::random(10) . '_' . time() . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('videos', $filename, 'public');
-
-                $videoBanner->video_url = url('storage/' . $path);
+                // 2. Upload Baru ke Cloudinary
+                $uploadResult = cloudinary()->uploadApi()->upload($request->file('video')->getRealPath(), [
+                    'folder' => 'hspace/videos'
+                , 'resource_type' => 'video']);
+                $videoBanner->video_url = $uploadResult['secure_url'];
             }
 
             $videoBanner->update([
@@ -107,7 +132,7 @@ class VideoBannerController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Gagal update: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to update: ' . $e->getMessage()], 500);
         }
     }
 
@@ -116,11 +141,23 @@ class VideoBannerController extends Controller
     {
         $video = VideoBanner::findOrFail($id);
 
-        // Hapus file fisik jika ada di storage lokal
         if (Str::contains($video->video_url, url('storage'))) {
             $path = str_replace(url('storage') . '/', '', $video->video_url);
             if (Storage::disk('public')->exists($path)) {
                 Storage::disk('public')->delete($path);
+            }
+        } elseif (Str::contains($video->video_url, 'res.cloudinary.com')) {
+            try {
+                $parts = explode('/upload/', $video->video_url);
+                if (count($parts) == 2) {
+                    $publicIdWithExt = explode('/', $parts[1]);
+                    array_shift($publicIdWithExt);
+                    $publicIdPath = implode('/', $publicIdWithExt);
+                    $publicId = pathinfo($publicIdPath, PATHINFO_DIRNAME) . '/' . pathinfo($publicIdPath, PATHINFO_FILENAME);
+                    cloudinary()->uploadApi()->destroy($publicId, ['resource_type' => 'video']);
+                }
+            } catch (\Exception $e) {
+                Log::error("Failed to delete video from Cloudinary: " . $e->getMessage());
             }
         }
 

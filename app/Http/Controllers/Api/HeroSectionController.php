@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\HeroSection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class HeroSectionController extends Controller
 {
@@ -51,62 +54,97 @@ class HeroSectionController extends Controller
 
         // Validasi untuk 5 gambar, bisa nullable
         for ($i = 0; $i < 5; $i++) {
-            $validationRules["background_image_{$i}"] = 'nullable|image|max:10240';
+            $validationRules["background_image_{$i}"] = 'nullable|image|max:3072';
             $validationRules["existing_image_{$i}"] = 'nullable|url|max:255';
         }
 
         $request->validate($validationRules);
 
-        // LOGIC: Kumpulkan 5 URL gambar
-        $newImageUrls = [];
+        DB::beginTransaction();
+        $uploadedCloudinaryIds = [];
+        try {
+            // LOGIC: Kumpulkan 5 URL gambar
+            $newImageUrls = [];
 
-        // Ambil array URL gambar lama untuk dihapus nanti
-        // Pastikan $hero->background_images adalah array
-        $oldImageUrls = is_array($hero->background_images) ? $hero->background_images : [];
+            // Ambil array URL gambar lama untuk dihapus nanti
+            $oldImageUrls = is_array($hero->background_images) ? $hero->background_images : [];
 
-        $imagesToDelete = array_filter($oldImageUrls, function($url) {
-            // Hanya proses string yang bukan link eksternal untuk dihapus
-            return is_string($url) && !str_contains($url, 'http');
-        });
+            $imagesToDelete = array_filter($oldImageUrls, function($url) {
+                // Hanya proses string yang bukan link eksternal untuk dihapus
+                return is_string($url) && !str_contains($url, 'http');
+            });
 
-        for ($i = 0; $i < 5; $i++) {
-            // 1. Cek kalau ada file gambar baru diupload
-            if ($request->hasFile("background_image_{$i}")) {
-                $path = $request->file("background_image_{$i}")->store('hero', 'public');
-                $url = url('storage/' . $path);
-                $newImageUrls[] = $url;
+            for ($i = 0; $i < 5; $i++) {
+                // 1. Cek kalau ada file gambar baru diupload
+                if ($request->hasFile("background_image_{$i}")) {
+                    $uploadResult = cloudinary()->uploadApi()->upload($request->file("background_image_{$i}")->getRealPath(), [
+                        'folder' => 'hspace/hero',
+                        'format' => 'webp',
+                        'transformation' => [
+                            'width' => 1920,
+                            'crop' => 'scale'
+                        ]
+                    ]);
+                    $uploadedCloudinaryIds[] = $uploadResult['public_id'];
+                    $url = $uploadResult['secure_url'];
+                    $newImageUrls[] = $url;
 
-                // Hapus URL ini dari list yang akan dihapus, karena sudah diganti/diupload
-                $imagesToDelete = array_diff($imagesToDelete, [$url]);
+                    // Remove this URL from the list to be deleted, as it is replaced/uploaded
+                    $imagesToDelete = array_diff($imagesToDelete, [$url]);
+                }
+                // 2. Cek kalau ada URL gambar lama yang dipertahankan
+                else if ($request->filled("existing_image_{$i}")) {
+                    $url = $request->input("existing_image_{$i}");
+                    $newImageUrls[] = $url;
+
+                    // Remove this URL from the list to be deleted
+                    $imagesToDelete = array_diff($imagesToDelete, [$url]);
+                }
             }
-            // 2. Cek kalau ada URL gambar lama yang dipertahankan
-            else if ($request->filled("existing_image_{$i}")) {
-                $url = $request->input("existing_image_{$i}");
-                $newImageUrls[] = $url;
 
-                // Hapus URL ini dari list yang akan dihapus
-                $imagesToDelete = array_diff($imagesToDelete, [$url]);
+            // Delete old files that are no longer used (deleted or replaced)
+            foreach ($imagesToDelete as $url) {
+                if (is_string($url)) { // Filter lagi agar lebih aman
+                    if (Str::contains($url, url('storage/'))) {
+                        // Ambil path relatif
+                        $oldPath = str_replace(url('storage/'), '', $url);
+                        if (Storage::disk('public')->exists($oldPath)) {
+                            Storage::disk('public')->delete($oldPath);
+                        }
+                    } elseif (Str::contains($url, 'res.cloudinary.com')) {
+                        $parts = explode('/upload/', $url);
+                        if (count($parts) == 2) {
+                            $publicIdWithExt = explode('/', $parts[1]);
+                            array_shift($publicIdWithExt);
+                            $publicIdPath = implode('/', $publicIdWithExt);
+                            $publicId = pathinfo($publicIdPath, PATHINFO_DIRNAME) . '/' . pathinfo($publicIdPath, PATHINFO_FILENAME);
+                            try {
+                                cloudinary()->uploadApi()->destroy($publicId);
+                            } catch (\Exception $e) {
+                                Log::error("Failed to delete Cloudinary hero image: " . $e->getMessage());
+                            }
+                        }
+                    }
+                }
             }
+
+            // Ambil data non-file yang diizinkan untuk update
+            $dataToUpdate = $request->only(['subtitle', 'title', 'description', 'button_text', 'button_link']);
+
+            // Save new array of URLs to database
+            $dataToUpdate['background_images'] = $newImageUrls;
+
+            // 👇 FIX: Use cleaned $dataToUpdate
+            $hero->update($dataToUpdate);
+
+            DB::commit();
+            return response()->json(['message' => 'Hero section updated!', 'data' => $hero]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            foreach ($uploadedCloudinaryIds as $publicId) {
+                try { cloudinary()->uploadApi()->destroy($publicId); } catch (\Exception $ex) {}
+            }
+            return response()->json(['message' => 'Failed to update hero section: ' . $e->getMessage()], 500);
         }
-
-        // Hapus file lama yang tidak dipakai lagi (karena dihapus atau diganti)
-        foreach ($imagesToDelete as $url) {
-            if (is_string($url)) { // Filter lagi agar lebih aman
-                // Ambil path relatif
-                $oldPath = str_replace(url('storage/'), '', $url);
-                Storage::disk('public')->delete($oldPath);
-            }
-        }
-
-        // Ambil data non-file yang diizinkan untuk update
-        $dataToUpdate = $request->only(['subtitle', 'title', 'description', 'button_text', 'button_link']);
-
-        // Simpan array URL baru ke database
-        $dataToUpdate['background_images'] = $newImageUrls;
-
-        // 👇 PERBAIKAN: Gunakan $dataToUpdate yang sudah bersih
-        $hero->update($dataToUpdate);
-
-        return response()->json(['message' => 'Hero section updated!', 'data' => $hero]);
     }
 }

@@ -32,13 +32,13 @@ class AuthController extends Controller
                 'required', 'confirmed', Password::min(12)->letters()->mixedCase()->numbers()->symbols()
             ],
         ], [
-            'email.unique' => 'Waduh, Email ini sudah terdaftar G! Coba Login aja.',
-            'password.min' => 'Password minimal 12 karakter ya, biar aman!',
-            'password.confirmed' => 'Password konfirmasi gak cocok nih.',
+            'email.unique' => 'Email is already registered! Please login.',
+            'password.min' => 'Password must be at least 12 characters!',
+            'password.confirmed' => 'Password confirmation does not match.',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['message' => 'Validasi Gagal', 'errors' => $validator->errors()], 422);
+            return response()->json(['message' => 'Validation Failed', 'errors' => $validator->errors()], 422);
         }
 
         // 👇 Fix Linter: Kasih tau ini pasti User model
@@ -58,15 +58,15 @@ class AuthController extends Controller
         } catch (\Throwable $e) { // 👈 TANGKAP SEMUA JENIS CRASH
 
             // Catat errornya di log server (storage/logs/laravel.log)
-            Log::error('GAGAL KIRIM EMAIL REGISTER (BREVO CRASH?): ' . $e->getMessage());
+            Log::error('FAILED TO SEND REGISTER EMAIL (BREVO CRASH?): ' . $e->getMessage());
 
             // Kita kasih debug error spesifik di response kalau masih 500, biar lo tau penyakitnya.
             // Tapi ini hanya kalau errornya beneran fatal dan nembus ke response.
         }
 
-        // Tetap return sukses 201 karena akun SUDAH JADI
+        // Still return 201 success because account is CREATED
         return response()->json([
-            'message' => 'Registrasi berhasil! Cek email lo buat verifikasi akun sebelum login (atau minta kirim ulang di halaman login).',
+            'message' => 'Registration successful! Check your email to verify your account before logging in.',
             'user' => $user,
         ], 201);
     }
@@ -87,7 +87,7 @@ class AuthController extends Controller
         // Cek Verifikasi
         if (!$user->hasVerifiedEmail()) {
              return response()->json([
-                 'message' => 'Email lo belum diverifikasi. Cek inbox/spam email lo ya G!',
+                 'message' => 'Your email is not verified yet. Please check your inbox/spam!',
                  'not_verified' => true
              ], 403);
         }
@@ -117,7 +117,6 @@ class AuthController extends Controller
             'email' => 'required|email',
             'name' => 'nullable|string',
             'uid' => 'required|string',
-            'avatar' => 'nullable|string',
         ]);
 
         $user = User::where('email', $request->email)->first();
@@ -131,7 +130,6 @@ class AuthController extends Controller
                 'role' => 'member',
                 'points' => 0,
                 'email_verified_at' => now(),
-                'avatar' => $request->avatar,
                 'uid' => $request->uid,
             ]);
         } else {
@@ -141,9 +139,6 @@ class AuthController extends Controller
             }
             if ($user->uid !== $request->uid) {
                 $user->update(['uid' => $request->uid]);
-            }
-            if (!$user->avatar && $request->avatar) {
-                $user->update(['avatar' => $request->avatar]);
             }
         }
 
@@ -168,18 +163,18 @@ class AuthController extends Controller
         // 1. Cek validitas link (Signature & Expiry)
         if (!$request->hasValidSignature()) {
             // Kalau expired, redirect ke FE dengan error param
-            $errorUrl = env('FRONTEND_URL', 'http://localhost:3000') . '/verify-email?error=' . urlencode('Link kadaluwarsa atau tidak valid.');
+            $errorUrl = env('FRONTEND_URL', 'http://localhost:3000') . '/verify-email?error=' . urlencode('Link expired or invalid.');
             return redirect($errorUrl);
         }
 
-        // 2. Mark verified kalau belum
+        // 2. Mark verified if not yet
         if (!$user->hasVerifiedEmail()) {
             $user->markEmailAsVerified();
             event(new Verified($user));
         }
 
         // 3. 👇 REDIRECT KE HALAMAN KHUSUS 'VERIFY-EMAIL' (BUKAN LOGIN)
-        // Pastikan .env FRONTEND_URL lo sudah benar (misal: https://hurtsspace.com)
+        // Make sure your .env FRONTEND_URL is correct (e.g. https://hurtsspace.com)
         $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000') . '/verify-email?verified=1';
 
         return redirect($frontendUrl);
@@ -192,7 +187,7 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (!$user) {
-             return response()->json(['message' => 'Link verifikasi udah dikirim ulang! Cek email.']);
+             return response()->json(['message' => 'Verification link has been resent! Check your email.']);
         }
 
         if ($request->user() && $request->user()->hasVerifiedEmail()) {
@@ -202,7 +197,7 @@ class AuthController extends Controller
         // Panggil langsung method sendEmailVerificationNotification
         $user->sendEmailVerificationNotification();
 
-        return response()->json(['message' => 'Link verifikasi udah dikirim ulang! Cek email.']);
+        return response()->json(['message' => 'Verification link has been resent! Check your email.']);
     }
 
     // ========================================================================
@@ -211,8 +206,6 @@ class AuthController extends Controller
     public function updateProfile(Request $request)
     {
         $user = $request->user();
-        // ... (Logic update profile sama persis, gak ada perubahan di sini)
-        // Code disingkat biar gak kepanjangan, copy dari versi sebelumnya kalau perlu full logicnya
 
         // Validasi
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
@@ -221,28 +214,13 @@ class AuthController extends Controller
             'address_detail' => 'nullable|string',
             'city_id' => 'nullable|string',
             'province_id' => 'nullable|string',
-            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
         ]);
 
-        if ($validator->fails()) return response()->json(['message' => 'Data profil gak valid nih.', 'errors' => $validator->errors()], 422);
-
-        $oldAvatarUrl = $user->avatar;
-        $newFilename = null;
-        $shouldDeleteOldFile = false;
+        if ($validator->fails()) return response()->json(['message' => 'Invalid profile data.', 'errors' => $validator->errors()], 422);
 
         DB::beginTransaction();
 
         try {
-            if ($request->hasFile('avatar')) {
-                $shouldDeleteOldFile = $user->avatar && !Str::contains($user->avatar, ['ui-avatars.com', 'default', 'googleusercontent.com']);
-                $manager = new ImageManager(new Driver());
-                $image = $manager->read($request->file('avatar')->getRealPath());
-                $image->cover(500, 500);
-                $newFilename = 'avatar_' . $user->id . '_' . time() . '.webp';
-                Storage::disk('public')->put('avatars/' . $newFilename, $image->encode());
-                $user->avatar = url('storage/avatars/' . $newFilename);
-            }
-
             $user->name = $request->name;
             if ($request->has('phone')) $user->phone = $request->phone;
             if ($request->has('address_detail')) $user->address_detail = $request->address_detail;
@@ -252,19 +230,13 @@ class AuthController extends Controller
             $user->save();
             $user->refresh();
 
-            if ($shouldDeleteOldFile) {
-                $oldPath = str_replace(url('storage') . '/', '', $oldAvatarUrl);
-                if (Storage::disk('public')->exists($oldPath)) Storage::disk('public')->delete($oldPath);
-            }
-
             DB::commit();
             return response()->json(['message' => 'Profile updated successfully', 'user' => $user]);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            if ($newFilename) Storage::disk('public')->delete('avatars/' . $newFilename);
             Log::error('Auth Update Profile Failed: ' . $e->getMessage());
-            return response()->json(['message' => 'Gagal update profile: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Failed to update profile: ' . $e->getMessage()], 500);
         }
     }
 
