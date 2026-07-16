@@ -65,6 +65,8 @@ class ProductController extends Controller
             'sizes' => 'required|array',
             'images' => 'required|array|min:1',
             'images.*' => 'file|extensions:jpeg,png,jpg,webp|max:3072',
+            'stock' => 'nullable|integer|min:0',
+            'stocks' => 'nullable|array',
         ]);
 
         if ($validator->fails()) {
@@ -105,8 +107,18 @@ class ProductController extends Controller
                 }
             }
 
-            foreach ($request->sizes as $size) {
-                $product->variants()->create(['size' => $size, 'stock' => 10]);
+            $inputStock = $request->input('stock', 10);
+            $inputStocks = $request->input('stocks', []);
+            
+            foreach ($request->sizes as $index => $size) {
+                if (is_array($inputStocks) && array_key_exists($size, $inputStocks)) {
+                    $stock = (int) $inputStocks[$size];
+                } elseif (is_array($inputStocks) && array_key_exists($index, $inputStocks)) {
+                    $stock = (int) $inputStocks[$index];
+                } else {
+                    $stock = (int) $inputStock;
+                }
+                $product->variants()->create(['size' => $size, 'stock' => $stock]);
             }
 
             DB::commit();
@@ -138,6 +150,8 @@ class ProductController extends Controller
             'images.*' => 'file|extensions:jpeg,png,jpg,webp|max:3072',
             // 👇 Wajib ada image_order buat nentuin posisi kongkrit jika ada update gambar
             'image_order' => 'sometimes|required|array',
+            'stock' => 'nullable|integer|min:0',
+            'stocks' => 'nullable|array',
         ]);
 
         if ($validator->fails()) {
@@ -158,7 +172,6 @@ class ProductController extends Controller
             if ($request->has('price')) $updateData['price'] = $request->price;
             if ($request->has('weight')) $updateData['weight'] = $request->weight;
             if ($request->has('is_collab')) $updateData['is_collab'] = $request->boolean('is_collab');
-            if ($request->has('stock')) $updateData['stock'] = $request->stock;
 
             if (!empty($updateData)) {
                 $product->update($updateData);
@@ -252,8 +265,20 @@ class ProductController extends Controller
             if ($request->has('sizes')) {
                 $oldVariants = $product->variants->pluck('stock', 'size')->toArray();
                 $product->variants()->delete();
-                foreach ($request->sizes as $size) {
-                    $stock = isset($oldVariants[$size]) ? $oldVariants[$size] : 10;
+                
+                $inputStock = $request->input('stock');
+                $inputStocks = $request->input('stocks', []);
+                
+                foreach ($request->sizes as $index => $size) {
+                    if (is_array($inputStocks) && array_key_exists($size, $inputStocks)) {
+                        $stock = (int) $inputStocks[$size];
+                    } elseif (is_array($inputStocks) && array_key_exists($index, $inputStocks)) {
+                        $stock = (int) $inputStocks[$index];
+                    } elseif ($inputStock !== null) {
+                        $stock = (int) $inputStock;
+                    } else {
+                        $stock = isset($oldVariants[$size]) ? $oldVariants[$size] : 10;
+                    }
                     $product->variants()->create(['size' => $size, 'stock' => $stock]);
                 }
             }
