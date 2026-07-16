@@ -47,3 +47,6 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 
 # Railway akan membaca port ini
 EXPOSE 80
+
+# Jalankan script startup
+CMD ["./start.sh"]
