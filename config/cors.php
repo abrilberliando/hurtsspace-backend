@@ -7,11 +7,7 @@ return [
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
-        'https://hurtsspace.com',
-        'https://www.hurtsspace.com',
-        'https://*.hurtsspace.com',
-        // 'http://localhost:3000',
-        // 'https://hurtsspace-frontend-staging.vercel.app',
+        env('FRONTEND_URL'),
     ],
 
     'allowed_origins_patterns' => [],
