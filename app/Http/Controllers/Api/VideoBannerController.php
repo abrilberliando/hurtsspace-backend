@@ -37,7 +37,7 @@ class VideoBannerController extends Controller
     {
         // Validasi Video: Max 50MB (sesuaikan config php.ini lo ya: upload_max_filesize)
         $request->validate([
-            'video' => 'required|file|mimetypes:video/mp4,video/quicktime|max:10240',
+            'video' => 'required|file|mimetypes:video/mp4,video/quicktime|max:15360',
             'title' => 'nullable|string',
             'link_url' => 'nullable|string',
         ]);
