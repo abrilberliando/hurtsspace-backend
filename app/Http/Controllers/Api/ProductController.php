@@ -64,7 +64,7 @@ class ProductController extends Controller
             'weight' => 'required|integer|min:1',
             'sizes' => 'required|array',
             'images' => 'required|array|min:1',
-            'images.*' => 'file|extensions:jpeg,png,jpg,webp|max:3072',
+            'images.*' => 'file|extensions:jpeg,png,jpg,webp|max:5120',
             'stock' => 'nullable|integer|min:0',
             'stocks' => 'nullable|array',
         ]);
@@ -147,7 +147,7 @@ class ProductController extends Controller
             'weight' => 'sometimes|required|integer|min:1',
             'sizes' => 'sometimes|required|array',
             'images' => 'nullable|array',
-            'images.*' => 'file|extensions:jpeg,png,jpg,webp|max:3072',
+            'images.*' => 'file|extensions:jpeg,png,jpg,webp|max:5120',
             // 👇 Wajib ada image_order buat nentuin posisi kongkrit jika ada update gambar
             'image_order' => 'sometimes|required|array',
             'stock' => 'nullable|integer|min:0',
