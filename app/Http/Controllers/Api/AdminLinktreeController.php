@@ -72,8 +72,8 @@ class AdminLinktreeController extends Controller
             'button_text_color' => 'required|string',
             'button_border_color' => 'required|string',
             'button_style' => 'required|in:solid,outline,glass',
-            'logo' => 'nullable|image|max:3072',
-            'background_image' => 'nullable|image|max:3072',
+            'logo' => 'nullable|image|max:5120',
+            'background_image' => 'nullable|image|max:5120',
         ]);
 
         DB::beginTransaction();
@@ -131,7 +131,7 @@ class AdminLinktreeController extends Controller
             'icon' => 'required|string',
             'label' => 'required|string',
             'url' => 'required|string',
-            'custom_icon' => 'nullable|image|max:3072',
+            'custom_icon' => 'nullable|image|max:5120',
         ]);
 
         DB::beginTransaction();
@@ -176,7 +176,7 @@ class AdminLinktreeController extends Controller
             'icon' => 'required|string',
             'label' => 'required|string',
             'url' => 'required|string',
-            'custom_icon' => 'nullable|image|max:3072',
+            'custom_icon' => 'nullable|image|max:5120',
         ]);
 
         DB::beginTransaction();

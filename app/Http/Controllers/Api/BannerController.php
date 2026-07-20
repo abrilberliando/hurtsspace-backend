@@ -50,8 +50,8 @@ class BannerController extends Controller
             'title' => 'required|string',
             'position' => 'required|in:1,2',
             // Validasi gambar max 5MB sebelum di-resize
-            'image_left' => 'required|image|max:3072',
-            'image_right' => 'required|image|max:3072',
+            'image_left' => 'required|image|max:5120',
+            'image_right' => 'required|image|max:5120',
             'link_url' => 'required|string',
         ]);
 
@@ -107,8 +107,8 @@ class BannerController extends Controller
         $request->validate([
             'title' => 'required|string',
             'link_url' => 'required|string',
-            'image_left' => 'nullable|image|max:3072',
-            'image_right' => 'nullable|image|max:3072',
+            'image_left' => 'nullable|image|max:5120',
+            'image_right' => 'nullable|image|max:5120',
         ]);
 
         DB::beginTransaction();

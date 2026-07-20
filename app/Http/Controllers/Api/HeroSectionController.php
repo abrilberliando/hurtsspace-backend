@@ -54,7 +54,7 @@ class HeroSectionController extends Controller
 
         // Validasi untuk 5 gambar, bisa nullable
         for ($i = 0; $i < 5; $i++) {
-            $validationRules["background_image_{$i}"] = 'nullable|image|max:3072';
+            $validationRules["background_image_{$i}"] = 'nullable|image|max:5120';
             $validationRules["existing_image_{$i}"] = 'nullable|url|max:255';
         }
 
